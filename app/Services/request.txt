@@ -1,0 +1,78 @@
+# Login request
+curl 'https://posapi.ipos.vn/api/accounts/v1/user/login' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Authorization;' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json;charset=UTF-8' \
+  -H 'Origin: https://fabi.ipos.vn' \
+  -H 'Referer: https://fabi.ipos.vn/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+  -H 'accept-language: vi' \
+  -H 'access_token: 5c885b2ef8c34fb7b1d1fad11eef7bec' \
+  -H 'fabi_type: pos-cms' \
+  -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'x-client-timezone: 25200000' \
+  --data-raw '{"email":"tranhoanggiang5@gmail.com","password":"giang17hoang"}'
+
+# Get Stores request
+curl 'https://posapi.ipos.vn/api/mdata/v1/stores?company_uid=c4e4c3c9-e177-4c62-844a-401d37ca1435&brand_uid=7b7bb511-84dd-45d0-81ad-edde5539c22f&page=1' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUwMDRmMmNiLWU0MjAtNGNiOC05OTFiLTVkMDdmNzc0M2UzMiIsInV0IjoiYjU5NmJkNzctMTNjMC00MTc5LTg5NjYtOGQ0NDQ4YWJjNWMyIiwiZW1haWwiOiJ0cmFuaG9hbmdnaWFuZzVAZ21haWwuY29tIiwiaWF0IjoxNzYxNDM1ODIwLCJleHAiOjE3NjIwNDA2MjB9.42wobiGcMEJmjQH6SoPcQ0E2qaSaREa1tYmg_2KNVDg' \
+  -H 'Connection: keep-alive' \
+  -H 'If-None-Match: W/"5d47-2yPa/3queZ7vgeuxZtuCLwzkGGw"' \
+  -H 'Origin: https://fabi.ipos.vn' \
+  -H 'Referer: https://fabi.ipos.vn/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+  -H 'accept-language: vi' \
+  -H 'access_token: 5c885b2ef8c34fb7b1d1fad11eef7bec' \
+  -H 'fabi_type: pos-cms' \
+  -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'x-client-timezone: 25200000'
+
+# Get sale-log by store and date range
+curl 'https://posapi.ipos.vn/api/v3/pos-cms/sale-change-log?company_uid=c4e4c3c9-e177-4c62-844a-401d37ca1435&brand_uid=7b7bb511-84dd-45d0-81ad-edde5539c22f&store_uid=b252a82f-73e5-47b4-94c0-0a34daae2549&start_date=1761411600000&end_date=1761497999999&page=1&store_open_at=0' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUwMDRmMmNiLWU0MjAtNGNiOC05OTFiLTVkMDdmNzc0M2UzMiIsInV0IjoiYjU5NmJkNzctMTNjMC00MTc5LTg5NjYtOGQ0NDQ4YWJjNWMyIiwiZW1haWwiOiJ0cmFuaG9hbmdnaWFuZzVAZ21haWwuY29tIiwiaWF0IjoxNzYxNDM1ODIwLCJleHAiOjE3NjIwNDA2MjB9.42wobiGcMEJmjQH6SoPcQ0E2qaSaREa1tYmg_2KNVDg' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: https://fabi.ipos.vn' \
+  -H 'Referer: https://fabi.ipos.vn/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+  -H 'accept-language: vi' \
+  -H 'access_token: 5c885b2ef8c34fb7b1d1fad11eef7bec' \
+  -H 'fabi_type: pos-cms' \
+  -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'x-client-timezone: 25200000'
+
+# Get cash-in-out by store and date range
+curl 'https://posapi.ipos.vn/api/v3/pos-cms/cash-in-out?company_uid=c4e4c3c9-e177-4c62-844a-401d37ca1435&brand_uid=7b7bb511-84dd-45d0-81ad-edde5539c22f&page=1&store_uid=b252a82f-73e5-47b4-94c0-0a34daae2549&start_date=1758128400000&end_date=1760806799999&store_open_at=0' \
+  -H 'Accept: application/json, text/plain, */*' \
+  -H 'Authorization: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImUwMDRmMmNiLWU0MjAtNGNiOC05OTFiLTVkMDdmNzc0M2UzMiIsInV0IjoiYjU5NmJkNzctMTNjMC00MTc5LTg5NjYtOGQ0NDQ4YWJjNWMyIiwiZW1haWwiOiJ0cmFuaG9hbmdnaWFuZzVAZ21haWwuY29tIiwiaWF0IjoxNzYxNDM1ODIwLCJleHAiOjE3NjIwNDA2MjB9.42wobiGcMEJmjQH6SoPcQ0E2qaSaREa1tYmg_2KNVDg' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: https://fabi.ipos.vn' \
+  -H 'Referer: https://fabi.ipos.vn/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+  -H 'accept-language: vi' \
+  -H 'access_token: 5c885b2ef8c34fb7b1d1fad11eef7bec' \
+  -H 'fabi_type: pos-cms' \
+  -H 'sec-ch-ua: "Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'x-client-timezone: 25200000'
