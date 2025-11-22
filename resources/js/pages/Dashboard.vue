@@ -85,10 +85,11 @@ onMounted(() => {
 
                 <!-- Company Info Card -->
                 <div class="p-6 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border bg-white dark:bg-gray-800">
-                    <h3 class="text-lg font-semibold mb-4">Thông tin công ty</h3>
+                    <h3 class="text-lg font-semibold mb-4">Thương hiệu</h3>
                     <div class="space-y-2">
-                        <p><strong>Tên công ty:</strong> {{ userData.company?.company_name }}</p>
-                        <p><strong>ID công ty:</strong> {{ userData.company?.company_id }}</p>
+                        <h4 class="font-medium">{{ userData.brands[0].brand_name }}</h4>
+                        <p class="text-sm text-gray-600">ID: {{ userData.brands[0].brand_id }}</p>
+                        <p class="text-sm text-gray-600">Tiền tệ: {{ userData.brands[0].currency }}</p>
                     </div>
                 </div>
 
@@ -99,18 +100,6 @@ onMounted(() => {
                         <p><strong>Số thương hiệu:</strong> {{ userData.brands?.length || 0 }}</p>
                         <p><strong>Số cửa hàng:</strong> {{ userData.stores?.length || 0 }}</p>
                         <p><strong>Cửa hàng hoạt động:</strong> {{ userData.stores?.filter(s => s.active === 1).length || 0 }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Brands Section -->
-            <div v-if="userData?.brands?.length" class="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border bg-white dark:bg-gray-800 p-6">
-                <h3 class="text-lg font-semibold mb-4">Thương hiệu</h3>
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div v-for="brand in userData.brands" :key="brand.id" class="p-4 border rounded-lg">
-                        <h4 class="font-medium">{{ brand.brand_name }}</h4>
-                        <p class="text-sm text-gray-600">ID: {{ brand.brand_id }}</p>
-                        <p class="text-sm text-gray-600">Tiền tệ: {{ brand.currency }}</p>
                     </div>
                 </div>
             </div>
