@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Models\Store;
 use App\Models\Transaction;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Store;
 
 class TransactionController extends Controller
 {
@@ -64,6 +64,8 @@ class TransactionController extends Controller
             'stores' => Store::where('active', 1)->get(),
             'categories' => Category::where('used_for_local', true)->get(),
             'professions' => Transaction::query()
+                ->when($request->filled('store_uid'), fn ($q) => $q->where('store_uid', $request->store_uid))
+                ->whereBetween('time', [$startMs, $endMs])
                 ->whereNotNull('profession_name')
                 ->where('profession_name', '!=', '')
                 ->groupBy('profession_name')
