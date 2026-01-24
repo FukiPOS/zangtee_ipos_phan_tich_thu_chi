@@ -9,4 +9,9 @@ class Transaction extends Model
     protected $guarded = [];
 
     public $timestamps = true;
+
+    public function profession()
+    {
+        return $this->belongsTo(Profession::class);
+    }
 }

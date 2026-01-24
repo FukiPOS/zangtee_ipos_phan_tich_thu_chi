@@ -27,13 +27,13 @@ const props = defineProps<{
     };
     stores: Array<any>;
     categories: Array<any>;
-    professions: Array<string>;
+    professions: Array<{ id: number; label: string }>;
     filters: {
         store_uid: string;
         from_date: string;
         to_date: string;
         search: string;
-        profession_name: string;
+        profession_id: string;
     };
 }>();
 
@@ -42,7 +42,7 @@ const form = ref({
     from_date: props.filters.from_date || '',
     to_date: props.filters.to_date || '',
     search: props.filters.search || '',
-    profession_name: props.filters.profession_name || '',
+    profession_id: props.filters.profession_id || '',
 });
 
 const submitFilter = () => {
@@ -69,12 +69,6 @@ const formatDate = (dateString: string) => {
 const getStoreName = (storeUid: string) => {
     const store = props.stores.find(s => s.store_uid === storeUid || s.ipos_id === storeUid);
     return store ? (store.short_name || store.name) : storeUid;
-};
-
-const extractProfessionName = (profString: string) => {
-    const lastParenIndex = profString.lastIndexOf(' (');
-    if (lastParenIndex === -1) return profString;
-    return profString.substring(0, lastParenIndex);
 };
 
 // --- Selection Logic ---
@@ -126,7 +120,7 @@ const submitBulkUpdate = (flag: string) => {
 const isEditOpen = ref(false);
 const editingTransaction = ref<any>(null);
 const editForm = useForm({
-    profession_name: '',
+    profession_id: '',
     category_id: '',
     flag: '',
     review_status: '',
@@ -134,7 +128,7 @@ const editForm = useForm({
 
 const openEdit = (transaction: any) => {
     editingTransaction.value = transaction;
-    editForm.profession_name = transaction.profession_name || '';
+    editForm.profession_id = transaction.profession_id || '';
     editForm.category_id = transaction.category_id || '';
     editForm.flag = transaction.flag || 'review';
     editForm.review_status = transaction.review_status || '';
@@ -154,11 +148,16 @@ const submitEdit = () => {
 };
 
 // Sync profession name when category selected
+// Sync profession name when category selected
 watch(() => editForm.category_id, (newVal) => {
     if (newVal) {
         const cat = props.categories.find(c => c.id == newVal);
         if (cat) {
-            editForm.profession_name = cat.name;
+            // Try to find matching profession by name
+            const prof = props.professions.find(p => p.label.startsWith(cat.name));
+            if (prof) {
+                editForm.profession_id = prof.id;
+            }
         }
     }
 });
@@ -191,10 +190,10 @@ watch(() => editForm.category_id, (newVal) => {
                         </div>
                         <div>
                             <Label class="block mb-2 font-medium dark:text-zinc-300">Mục chi</Label>
-                            <select v-model="form.profession_name" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
+                            <select v-model="form.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
                                 <option value="">Tất cả</option>
-                                <option v-for="prof in professions" :key="prof" :value="extractProfessionName(prof)">
-                                    {{ prof }}
+                                <option v-for="prof in professions" :key="prof.id" :value="prof.id">
+                                    {{ prof.label }}
                                 </option>
                             </select>
                         </div>
@@ -260,7 +259,7 @@ watch(() => editForm.category_id, (newVal) => {
                                     <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-zinc-100">{{ formatCurrency(tran.amount) }}</td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                            {{ tran.profession_name || 'N/A' }}
+                                            {{ tran.profession ? tran.profession.name : 'N/A' }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -327,7 +326,7 @@ watch(() => editForm.category_id, (newVal) => {
 
                             <div class="flex justify-between items-center pt-2 border-t border-gray-100 dark:border-zinc-700/50">
                                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
-                                    {{ tran.profession_name || 'Chưa phân loại' }}
+                                    {{ tran.profession ? tran.profession.name : 'Chưa phân loại' }}
                                 </span>
                                 <button @click="openEdit(tran)" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
                                     Chỉnh sửa
@@ -382,10 +381,10 @@ watch(() => editForm.category_id, (newVal) => {
                     <div class="grid grid-cols-4 items-center gap-4">
                         <Label class="text-right dark:text-zinc-300">Tên mục chi</Label>
                         <div class="col-span-3">
-                             <select v-model="editForm.profession_name" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                             <select v-model="editForm.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
                                 <option value="">-- Chọn tên mục chi --</option>
-                                <option v-for="prof in professions" :key="prof" :value="extractProfessionName(prof)">
-                                    {{ prof }}
+                                <option v-for="prof in professions" :key="prof.id" :value="prof.id">
+                                    {{ prof.label }}
                                 </option>
                             </select>
                         </div>

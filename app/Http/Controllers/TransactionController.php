@@ -46,71 +46,65 @@ class TransactionController extends Controller
             $query->where('note', 'like', "%{$request->search}%");
         }
 
-        // Filter by profession name
-        if ($request->filled('profession_name')) {
-            $query->where('profession_name', $request->profession_name);
+        // Filter by profession id
+        if ($request->filled('profession_id')) {
+            $query->where('profession_id', $request->profession_id);
         }
 
-        $transactions = $query->orderBy('time', 'desc')
+        $transactions = $query->with('profession')
+            ->orderBy('time', 'desc')
             ->paginate($request->input('per_page', 50))
             ->withQueryString();
 
         if ($request->wantsJson()) {
             return response()->json($transactions);
         }
+        
+        // Get stats for professions dropdown 
+        // We select profession_id, count, and join to get name for display
+        $professionStats = Transaction::query()
+            ->when($request->filled('store_uid'), fn ($q) => $q->where('store_uid', $request->store_uid))
+            ->whereBetween('time', [$startMs, $endMs])
+            ->whereNotNull('profession_id')
+            ->groupBy('profession_id')
+            ->selectRaw("profession_id, count(*) as total, sum(case when flag = 'valid' then 1 else 0 end) as valid_count")
+            ->with('profession') 
+            ->get()
+            ->map(function ($item) {
+                $name = $item->profession ? $item->profession->name : 'Unknown';
+                return [
+                    'id' => $item->profession_id,
+                    'label' => "{$name} ({$item->valid_count}/{$item->total})",
+                ];
+            })
+            ->sortBy('label') // sort by name (label)
+            ->values();
 
         return Inertia::render('Transaction/Index', [
             'transactions' => $transactions,
             'stores' => Store::where('active', 1)->get(),
             'categories' => Category::where('used_for_local', true)->get(),
-            'professions' => Transaction::query()
-                ->when($request->filled('store_uid'), fn ($q) => $q->where('store_uid', $request->store_uid))
-                ->whereBetween('time', [$startMs, $endMs])
-                ->whereNotNull('profession_name')
-                ->where('profession_name', '!=', '')
-                ->groupBy('profession_name')
-                ->selectRaw("profession_name, count(*) as total, sum(case when flag = 'valid' then 1 else 0 end) as valid_count")
-                ->orderBy('profession_name')
-                ->get()
-                ->map(fn ($item) => "{$item->profession_name} ({$item->valid_count}/{$item->total})"),
+            'professions' => $professionStats,
             'filters' => [
                 'from_date' => $fromDate ?: $defaultStartDate->format('Y-m-d'),
                 'to_date' => $toDate ?: $defaultEndDate->format('Y-m-d'),
                 'store_uid' => $request->store_uid,
                 'search' => $request->search,
-                'profession_name' => $request->profession_name,
+                'profession_id' => $request->profession_id,
             ],
         ]);
     }
 
     public function update(Request $request, $id)
     {
-        // $id passed is likely the ID or cash_id. Let's assume cash_id or find by id.
-        // Route parameter usually binds to logic. If ID is integer, use findOrFail($id).
-        // If ID is string cash_id, use where.
-
-        // Let's assume we pass ID (primary key).
         $transaction = Transaction::findOrFail($id);
 
         $validated = $request->validate([
-            'profession_name' => 'nullable|string',
-            'profession_uid' => 'nullable|string',
+            'profession_id' => 'nullable|exists:professions,id',
             'category_id' => 'nullable|integer',
             'flag' => 'required|in:valid,review,invalid',
             'review_status' => 'nullable|string',
         ]);
-
-        // If category_id changed, we might want to sync profession_name/uid from Category model
-        if (! empty($validated['category_id'])) {
-            $cat = Category::find($validated['category_id']);
-            if ($cat) {
-                $validated['profession_name'] = $cat->name;
-                $validated['profession_uid'] = $cat->ipos_id;
-            }
-        } elseif (! empty($validated['profession_name'])) {
-            // If manual name text, maybe unassign category or find one?
-            // For now, trust the controller to just update fields
-        }
 
         $transaction->update($validated);
 

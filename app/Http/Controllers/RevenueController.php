@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Store;
 use App\Models\Transaction;
 use App\Services\FabiService;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 
 class RevenueController extends Controller
 {
@@ -37,17 +37,17 @@ class RevenueController extends Controller
 
         // We need to call FabiService. But FabiService::login needs credentials.
         // We assume env credentials or cached token.
-        $fabi = new FabiService();
+        $fabi = new FabiService;
         try {
-             // Ensure logged in
-             if (!$fabi->getAuthToken()) {
-                 $loginData = $fabi->login(env('IPOS_USERNAME'), env('IPOS_PASSWORD'));
-                 if (isset($loginData['data'])) {
-                     \App\Helpers\FabiHelper::updateAuthData($loginData['data']);
-                 }
-             }
+            // Ensure logged in
+            if (! $fabi->getAuthToken()) {
+                $loginData = $fabi->login(env('IPOS_USERNAME'), env('IPOS_PASSWORD'));
+                if (isset($loginData['data'])) {
+                    \App\Helpers\FabiHelper::updateAuthData($loginData['data']);
+                }
+            }
         } catch (\Exception $e) {
-             // ignore
+            // ignore
         }
 
         // Ideally, we shouldn't loop API calls in controller.
@@ -67,15 +67,24 @@ class RevenueController extends Controller
         // The example curl has `list_store_uid=uid`. Maybe comma separated?
 
         // Calculation from DB (Transactions)
+        // Calculation from DB (Transactions)
         $expenses = Transaction::whereBetween('time', [$startMs, $endMs])
-             ->when($request->store_uid, fn($q) => $q->where('store_uid', $request->store_uid))
-             ->get()
-             ->groupBy('profession_name')
-             ->map(function ($items) {
-                 return $items->sum('amount');
-             });
+            ->when($request->store_uid, fn ($q) => $q->where('store_uid', $request->store_uid))
+            ->with('profession')
+            ->get()
+            ->groupBy('profession_id')
+            ->map(function ($items, $id) {
+                $first = $items->first();
+                $name = $first->profession ? $first->profession->name : 'Chưa phân loại';
+                return [
+                    'id' => $id,
+                    'name' => $name,
+                    'amount' => $items->sum('amount'),
+                ];
+            })
+            ->values();
 
-        $totalExpense = $expenses->sum();
+        $totalExpense = $expenses->sum('amount');
 
         // Initialize revenue
         $revenue = 0;
@@ -85,32 +94,32 @@ class RevenueController extends Controller
             // Let's assume user has access to one company/brand for now or get from first store.
             $firstStore = $stores->first();
             if ($firstStore) {
-                 $companyUid = $firstStore->company_uid ?? 'unknown'; // Should be in DB or get from login data
-                 $brandUid = $firstStore->brand_uid ?? 'unknown';
+                $companyUid = $firstStore->company_uid ?? 'unknown'; // Should be in DB or get from login data
+                $brandUid = $firstStore->brand_uid ?? 'unknown';
 
-                 // If filtering by store, usage that store UID. Else list all.
-                 $listStoreUid = '';
-                 if ($request->store_uid) {
-                     $listStoreUid = $request->store_uid;
-                 } else {
-                     // Comma separated list of all stores
-                     $listStoreUid = $stores->pluck('ipos_id')->implode(',');
-                 }
+                // If filtering by store, usage that store UID. Else list all.
+                $listStoreUid = '';
+                if ($request->store_uid) {
+                    $listStoreUid = $request->store_uid;
+                } else {
+                    // Comma separated list of all stores
+                    $listStoreUid = $stores->pluck('ipos_id')->implode(',');
+                }
 
-                 if ($companyUid && $brandUid) {
-                     $apiResponse = $fabi->getRevenueOverview($companyUid, $brandUid, $listStoreUid, $startMs, $endMs);
+                if ($companyUid && $brandUid) {
+                    $apiResponse = $fabi->getRevenueOverview($companyUid, $brandUid, $listStoreUid, $startMs, $endMs);
 
-                     // Assuming response structure has data.
-                     // Usually $apiResponse['data'] is a list or object.
-                     // If it's `revenue_overview_request`, it might return aggregate or per store.
-                     // Let's assume it returns a list of revenues per store or a total object.
-                     // Based on standard iPos reports, it often returns "data" -> array of items.
-                     // Each item might have "revenue_net".
+                    // Assuming response structure has data.
+                    // Usually $apiResponse['data'] is a list or object.
+                    // If it's `revenue_overview_request`, it might return aggregate or per store.
+                    // Let's assume it returns a list of revenues per store or a total object.
+                    // Based on standard iPos reports, it often returns "data" -> array of items.
+                    // Each item might have "revenue_net".
 
-                     if (!empty($apiResponse['data'])) {
-                         $revenue = $apiResponse['data']['revenue_net'] ?? 0;
-                     }
-                 }
+                    if (! empty($apiResponse['data'])) {
+                        $revenue = $apiResponse['data']['revenue_net'] ?? 0;
+                    }
+                }
             }
         } catch (\Exception $e) {
             // Fallback or log?
@@ -118,7 +127,7 @@ class RevenueController extends Controller
             // $revenue = \App\Models\Order::whereBetween('start_date', [$startMs, $endMs])
             //      ->when($request->store_uid, fn($q) => $q->where('store_uid', $request->store_uid))
             //      ->sum('amount_origin');
-            \Illuminate\Support\Facades\Log::error("Revenue API failed: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Revenue API failed: '.$e->getMessage());
         }
 
         return Inertia::render('Revenue/Index', [
@@ -130,7 +139,7 @@ class RevenueController extends Controller
                 'to_date' => $toDate ?: $defaultEndDate->format('Y-m-d'),
                 'store_uid' => $request->store_uid,
             ],
-            'stores' => $stores
+            'stores' => $stores,
         ]);
     }
 }

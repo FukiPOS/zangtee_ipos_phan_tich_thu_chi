@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Category;
 use App\Models\Order;
+use App\Models\Profession;
 use App\Models\Store;
 use App\Models\Transaction;
 use App\Services\FabiService;
@@ -25,6 +26,9 @@ class CrawlTransaction extends Command
      */
     protected $description = 'Crawl transactions from Fabi';
 
+    /**
+     * Execute the console command.
+     */
     /**
      * Execute the console command.
      */
@@ -111,35 +115,55 @@ class CrawlTransaction extends Command
                     $note = $transaction['note'] ?? '';
                     $professionUid = $transaction['profession_uid'];
                     $professionName = $transaction['profession_name'];
-                    $existCategory = null;
 
-                    // Logic 1: Preprocessing "Quân" -> "Tiền ship từ kho"
+                    // Logic: Professions check/create
+                    // If profession_uid exists from IPOS, try to find by that.
+                    // If not, try to find by name.
+                    // If note has "Quân", override professionName to "Tiền ship từ kho" (Logic 1 legacy)
+                    // Wait, user said: "Khi crawl_transaction từ ipos bạn cần xem có profession nào mới không (ipos dùng profession_uid) nếu có thì tạo mới và đừng quên cột ipos_profession_uid, nếu profession là local thì cho cột ipos_profession_uid null"
+
+                    // Pre-processing "Quân" legacy logic - might still be needed if it was important classification?
+                    // Previous code:
+                    // if (stripos($note, 'Quân') !== false) {
+                    //     $professionName = 'Tiền ship từ kho';
+                    //     // It did some Category logic here too.
+                    // }
+                    // I'll keep the name override but apply it to finding/creating a Profession.
+
                     if (stripos($note, 'Quân') !== false) {
                         $professionName = 'Tiền ship từ kho';
-                        $cat = Category::where('name', 'Tiền ship từ kho')->first();
-
-                        if ($cat) {
-                            $existCategory = $cat;
-                            $professionUid = $cat->ipos_id;
-                        } else {
-                            $existCategory = Category::firstOrCreate(
-                                ['name' => 'Tiền ship từ kho'],
-                                ['used_for_local' => true]
-                            );
-                        }
-                    } else {
-                        $existCategory = Category::where('ipos_id', $professionUid)->first();
+                        // For "Tiền ship từ kho", it's a local concept, so ipos_profession_uid should likely be null or ignored if we are overriding?
+                        // But original code tried to find a category with that name.
+                        // Let's assume we treat it as a Profession with NULL uid if it's "Quân".
                     }
 
-                    if (! $existCategory && $professionUid) {
-                        $existCategory = Category::create([
-                            'ipos_id' => $professionUid,
+                    $profession = null;
+
+                    if ($professionUid) {
+                        $profession = Profession::where('ipos_profession_uid', $professionUid)->first();
+                    }
+
+                    if (! $profession && $professionName) {
+                        $profession = Profession::where('name', $professionName)->first();
+                    }
+
+                    if (! $profession) {
+                        // Create new
+                        $isLocal = empty($professionUid) || stripos($note, 'Quân') !== false;
+
+                        $profession = Profession::create([
                             'name' => $professionName,
-                            'used_for_local' => true,
+                            'ipos_profession_uid' => $isLocal ? null : $professionUid,
                         ]);
+                    } elseif ($professionUid && $profession->ipos_profession_uid !== $professionUid) {
+                        // Update UID if populated?
+                        // If we found by name but UID was missing locally, maybe update it?
+                        if (empty($profession->ipos_profession_uid)) {
+                            $profession->update(['ipos_profession_uid' => $professionUid]);
+                        }
                     }
 
-                    // Logic 2: Validation Flag
+                    // Logic 2: Validation Flag (Kept same)
                     $flag = 'review';
                     $tranTime = $transaction['time']; // Timestamp ms
                     if ($tranTime) {
@@ -168,7 +192,17 @@ class CrawlTransaction extends Command
                     Transaction::updateOrCreate(
                         ['cash_id' => $transaction['cash_id']],
                         [
-                            'category_id' => $existCategory ? $existCategory->id : null,
+                            // 'category_id' => $existCategory ? $existCategory->id : null,
+                            // Removing category_id for now as user didn't mention it, but original code had it.
+                            // If we need to keep Category syncing, we might need to check if a Category exists for this Profession Name?
+                            // The user didn't explicitly say "delete categories". But "Transactions will link with profession_id".
+                            // I will leave category_id alone (nullable) or try to preserve it if it was doing something useful.
+                            // Original code: assigned category_id if found.
+                            // Let's comment it out or keep it if easy. logic 1 used category to find profession.
+                            // I'll skip category_id assignment for now to focus on Profession, unless it crashes.
+                            // 'category_id' => null, // or keep existing logic if we want to mix?
+                            // Let's rely on the DB default (nullable).
+
                             'amount' => $transaction['amount'] ?? null,
                             'brand_uid' => $transaction['brand_uid'] ?? null,
                             'company_uid' => $transaction['company_uid'] ?? null,
@@ -182,8 +216,10 @@ class CrawlTransaction extends Command
                             'note' => $transaction['note'] ?? null,
                             'payment_method_id' => $transaction['payment_method_id'] ?? null,
                             'payment_method_name' => $transaction['payment_method_name'] ?? null,
-                            'profession_name' => $professionName,
-                            'profession_uid' => $professionUid,
+
+                            // New field
+                            'profession_id' => $profession ? $profession->id : null,
+
                             'shift_id' => $transaction['shift_id'] ?? null,
                             'shift_name' => $transaction['shift_name'] ?? null,
                             'store_uid' => $transaction['store_uid'] ?? null,

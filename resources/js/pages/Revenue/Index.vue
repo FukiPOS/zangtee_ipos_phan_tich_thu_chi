@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, router, Link } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,11 @@ import axios from 'axios';
 const props = defineProps<{
     totalRevenue: number;
     totalExpense: number;
-    expenseByProfession: Record<string, number>;
+    expenseByProfession: Array<{
+        id: number;
+        name: string;
+        amount: number;
+    }>;
     stores: Array<any>;
     filters: {
         store_uid: string;
@@ -67,10 +71,10 @@ const chartData = computed(() => {
     const total = props.totalExpense || 1; // avoid div by 0
     let startAngle = 0;
 
-    return Object.entries(props.expenseByProfession)
-        .sort(([, a], [, b]) => b - a) // Sort desc
-        .map(([name, value], index) => {
-            const percentage = value / total;
+    return props.expenseByProfession
+        .sort((a, b) => b.amount - a.amount) // Sort desc
+        .map((item, index) => {
+            const percentage = item.amount / total;
             const angle = percentage * 360;
             const endAngle = startAngle + angle;
 
@@ -90,8 +94,9 @@ const chartData = computed(() => {
             ].join(' ');
 
             const segment = {
-                name,
-                value,
+                name: item.name,
+                id: item.id,
+                value: item.amount,
                 percentage,
                 color: colors[index % colors.length],
                 path: pathData,
@@ -113,9 +118,12 @@ const detailsPage = ref(1);
 const detailsLastPage = ref(1);
 const detailsPerPage = 100;
 
-const fetchDetails = async (professionName: string, page = 1) => {
+const detailsProfessionId = ref<number | null>(null);
+
+const fetchDetails = async (profession: any, page = 1) => {
     if (page === 1) {
-        detailsTitle.value = professionName;
+        detailsTitle.value = profession.name;
+        detailsProfessionId.value = profession.id;
         isDetailsOpen.value = true;
         detailsData.value = [];
         detailsPage.value = 1;
@@ -126,7 +134,7 @@ const fetchDetails = async (professionName: string, page = 1) => {
     try {
         const query = {
             ...form.value,
-            profession_name: professionName || detailsTitle.value,
+            profession_id: detailsProfessionId.value,
             page: page,
             per_page: detailsPerPage
         };
@@ -156,7 +164,7 @@ const handleScroll = (e: Event) => {
     if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
         // Scrolled near bottom
         if (!detailsLoading.value && detailsPage.value < detailsLastPage.value) {
-            fetchDetails(detailsTitle.value, detailsPage.value + 1);
+            fetchDetails({ name: detailsTitle.value, id: detailsProfessionId.value }, detailsPage.value + 1);
         }
     }
 };
@@ -245,7 +253,7 @@ const getStoreName = (storeUid: string) => {
                                         <path v-for="(segment, i) in chartData" :key="i"
                                             :d="segment.path"
                                             :fill="segment.color"
-                                            @click="fetchDetails(segment.name)"
+                                            @click="fetchDetails(segment)"
                                             class="stroke-white dark:stroke-zinc-900 hover:opacity-80 transition-opacity cursor-pointer"
                                             stroke-width="0.5"
                                         >
@@ -302,7 +310,7 @@ const getStoreName = (storeUid: string) => {
                                 <div class="space-y-2">
                                      <div v-for="(segment, i) in chartData" :key="i"
                                         class="flex items-center justify-between text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-800 p-1 rounded transition-colors"
-                                        @click="fetchDetails(segment.name)"
+                                        @click="fetchDetails(segment)"
                                      >
                                         <div class="flex items-center gap-2">
                                             <span class="w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: segment.color }"></span>
