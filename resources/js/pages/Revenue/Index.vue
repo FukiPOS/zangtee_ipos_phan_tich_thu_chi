@@ -80,12 +80,12 @@ const colors = [
 
 // Assign consistent colors to stores based on their order in props.stores
 const getStoreColor = (storeUid: string) => {
-    const validStores = props.stores.map(s => s.ipos_id); 
+    const validStores = props.stores.map(s => s.ipos_id);
     // Or maybe props.comparisonData has all stores? No, better relying on stores list for consistent ordering.
     // If props.stores is available, use it index.
     const index = validStores.indexOf(storeUid);
     if (index >= 0) return colors[index % colors.length];
-    
+
     // Fallback hash
     let hash = 0;
     for (let i = 0; i < storeUid.length; i++) {
@@ -388,14 +388,14 @@ const getStoreName = (storeUid: string) => {
 
                 <!-- Comparison Charts Section -->
                 <div v-if="comparisonChartGroups.length > 0" class="space-y-6">
-                    <h3 class="text-lg font-bold dark:text-zinc-100">So sánh Chi phí theo Cửa hàng</h3>
-                    
+                    <h3 class="text-lg font-bold dark:text-zinc-100 text-center">So sánh Chi phí theo Cửa hàng</h3>
+
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <GroupedBarChart 
-                            v-for="(group, index) in comparisonChartGroups" 
+                        <GroupedBarChart
+                            v-for="(group, index) in comparisonChartGroups"
                             :key="index"
                             :groups="group"
-                            :title="group.length > 0 ? '' : ''" 
+                            :title="group.length > 0 ? '' : ''"
                         />
                     </div>
                 </div>

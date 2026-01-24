@@ -53,14 +53,14 @@ class TransactionController extends Controller
 
         $transactions = $query->with('profession')
             ->orderBy('time', 'desc')
-            ->paginate($request->input('per_page', 50))
+            ->paginate($request->input('per_page', 20))
             ->withQueryString();
 
         if ($request->wantsJson()) {
             return response()->json($transactions);
         }
-        
-        // Get stats for professions dropdown 
+
+        // Get stats for professions dropdown
         // We select profession_id, count, and join to get name for display
         $professionStats = Transaction::query()
             ->when($request->filled('store_uid'), fn ($q) => $q->where('store_uid', $request->store_uid))
@@ -68,7 +68,7 @@ class TransactionController extends Controller
             ->whereNotNull('profession_id')
             ->groupBy('profession_id')
             ->selectRaw("profession_id, count(*) as total, sum(case when flag = 'valid' then 1 else 0 end) as valid_count")
-            ->with('profession') 
+            ->with('profession')
             ->get()
             ->map(function ($item) {
                 $name = $item->profession ? $item->profession->name : 'Unknown';
