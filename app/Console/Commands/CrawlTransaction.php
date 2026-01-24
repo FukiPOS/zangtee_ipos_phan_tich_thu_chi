@@ -189,7 +189,13 @@ class CrawlTransaction extends Command
                         }
                     }
 
-                    Transaction::updateOrCreate(
+                    $type = $transaction['type'] ?? null;
+                    $deletedAt = $transaction['deleted_at'] ?? null;
+                    if ($type === 'IN' && ! $deletedAt) {
+                        $deletedAt = now();
+                    }
+
+                    Transaction::withTrashed()->updateOrCreate(
                         ['cash_id' => $transaction['cash_id']],
                         [
                             // 'category_id' => $existCategory ? $existCategory->id : null,
@@ -209,7 +215,7 @@ class CrawlTransaction extends Command
                             'created_at' => $transaction['created_at'] ?? null,
                             'created_by' => $transaction['created_by'] ?? null,
                             'deleted' => $transaction['deleted'] ?? false,
-                            'deleted_at' => $transaction['deleted_at'] ?? null,
+                            'deleted_at' => $deletedAt,
                             'deleted_by' => $transaction['deleted_by'] ?? null,
                             'employee_email' => $transaction['employee_email'] ?? null,
                             'employee_name' => $transaction['employee_name'] ?? null,
@@ -224,7 +230,7 @@ class CrawlTransaction extends Command
                             'shift_name' => $transaction['shift_name'] ?? null,
                             'store_uid' => $transaction['store_uid'] ?? null,
                             'time' => $transaction['time'] ?? null,
-                            'type' => $transaction['type'] ?? null,
+                            'type' => $type,
                             'updated_at' => $transaction['updated_at'] ?? null,
                             'updated_by' => $transaction['updated_by'] ?? null,
                             'flag' => $flag,

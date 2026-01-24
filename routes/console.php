@@ -2,7 +2,10 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+// Run app:crawl-order daily
+Schedule::command('app:crawl-order')->daily();
+
+// Run app:crawl-transaction daily
+Schedule::command('app:crawl-transaction')->daily();

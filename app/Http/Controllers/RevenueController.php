@@ -66,8 +66,8 @@ class RevenueController extends Controller
         // or implementing the API call if I knew the multi-store syntax.
         // The example curl has `list_store_uid=uid`. Maybe comma separated?
 
-        // Calculation from DB (Transactions)
-        // Calculation from DB (Transactions)
+
+        // Calculation from DB (Transactions) for Summary (respected filter)
         $expenses = Transaction::whereBetween('time', [$startMs, $endMs])
             ->when($request->store_uid, fn ($q) => $q->where('store_uid', $request->store_uid))
             ->with('profession')
@@ -85,6 +85,39 @@ class RevenueController extends Controller
             ->values();
 
         $totalExpense = $expenses->sum('amount');
+
+        // Revenue Comparison Data (Ignore store_uid filter to show all stores)
+        $comparisonData = Transaction::whereBetween('time', [$startMs, $endMs])
+            ->with(['profession', 'store'])
+            ->get()
+            ->groupBy('profession_id')
+            ->map(function ($items, $id) {
+                $first = $items->first();
+                $professionName = $first->profession ? $first->profession->name : 'Chưa phân loại';
+                
+                // Group by store within this profession
+                $storesData = $items->groupBy('store_uid')->map(function($storeItems, $storeUid) {
+                    $firstStore = $storeItems->first();
+                    $storeName = $firstStore->store ? $firstStore->store->name : $storeUid;
+                    // Use short_name if available, else name
+                    if ($firstStore->store && $firstStore->store->short_name) {
+                        $storeName = $firstStore->store->short_name;
+                    }
+                    
+                    return [
+                        'uid' => $storeUid,
+                        'name' => $storeName,
+                        'amount' => $storeItems->sum('amount'),
+                    ];
+                })->values();
+
+                return [
+                    'id' => $id,
+                    'name' => $professionName,
+                    'stores' => $storesData
+                ];
+            })
+            ->values();
 
         // Initialize revenue
         $revenue = 0;
@@ -134,6 +167,7 @@ class RevenueController extends Controller
             'totalRevenue' => $revenue,
             'totalExpense' => $totalExpense,
             'expenseByProfession' => $expenses,
+            'comparisonData' => $comparisonData,
             'filters' => [
                 'from_date' => $fromDate ?: $defaultStartDate->format('Y-m-d'),
                 'to_date' => $toDate ?: $defaultEndDate->format('Y-m-d'),

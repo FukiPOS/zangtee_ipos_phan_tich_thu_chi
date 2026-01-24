@@ -13,7 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+
 } from '@/components/ui/dialog';
+import GroupedBarChart from '@/components/GroupedBarChart.vue';
 import axios from 'axios';
 
 const props = defineProps<{
@@ -23,6 +25,15 @@ const props = defineProps<{
         id: number;
         name: string;
         amount: number;
+    }>;
+    comparisonData: Array<{
+        id: number;
+        name: string;
+        stores: Array<{
+            uid: string;
+            name: string;
+            amount: number;
+        }>;
     }>;
     stores: Array<any>;
     filters: {
@@ -67,6 +78,23 @@ const colors = [
     '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#06b6d4'
 ];
 
+// Assign consistent colors to stores based on their order in props.stores
+const getStoreColor = (storeUid: string) => {
+    const validStores = props.stores.map(s => s.ipos_id); 
+    // Or maybe props.comparisonData has all stores? No, better relying on stores list for consistent ordering.
+    // If props.stores is available, use it index.
+    const index = validStores.indexOf(storeUid);
+    if (index >= 0) return colors[index % colors.length];
+    
+    // Fallback hash
+    let hash = 0;
+    for (let i = 0; i < storeUid.length; i++) {
+        hash = storeUid.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+};
+
 const chartData = computed(() => {
     const total = props.totalExpense || 1; // avoid div by 0
     let startAngle = 0;
@@ -107,6 +135,37 @@ const chartData = computed(() => {
             startAngle = endAngle;
             return segment;
         });
+});
+
+const comparisonChartGroups = computed(() => {
+    if (!props.comparisonData) return [];
+
+    // Sort groups ?
+    // Map to internal format
+    // Map to internal format
+    const formattedGroups = props.comparisonData.map(profession => {
+        // Ensure we iterate over ALL stores to fill gaps with 0
+        const values = props.stores.map(store => {
+            const storeData = profession.stores.find(s => s.uid === store.ipos_id);
+            return {
+                label: store.short_name || store.name,
+                value: storeData ? storeData.amount : 0,
+                color: getStoreColor(store.ipos_id)
+            };
+        });
+
+        return {
+            label: profession.name,
+            values: values
+        };
+    });
+
+    // Chunk into 3
+    const chunks = [];
+    for (let i = 0; i < formattedGroups.length; i += 3) {
+        chunks.push(formattedGroups.slice(i, i + 3));
+    }
+    return chunks;
 });
 
 // --- Details Dialog Logic ---
@@ -324,6 +383,20 @@ const getStoreName = (storeUid: string) => {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Charts Section -->
+                <div v-if="comparisonChartGroups.length > 0" class="space-y-6">
+                    <h3 class="text-lg font-bold dark:text-zinc-100">So sánh Chi phí theo Cửa hàng</h3>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <GroupedBarChart 
+                            v-for="(group, index) in comparisonChartGroups" 
+                            :key="index"
+                            :groups="group"
+                            :title="group.length > 0 ? '' : ''" 
+                        />
                     </div>
                 </div>
             </div>
