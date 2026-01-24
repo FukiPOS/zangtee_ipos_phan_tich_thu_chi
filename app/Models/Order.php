@@ -20,5 +20,6 @@ class Order extends Model
         'payment_method_id',
         'payment_amout',
         'raw_data',
+        'sale_note',
     ];
 }

@@ -8,5 +8,5 @@ class Transaction extends Model
 {
     protected $guarded = [];
 
-    public $timestamps = false;
+    public $timestamps = true;
 }

@@ -52,6 +52,24 @@ class FabiService
     public function login(string $email, string $password): array
     {
         try {
+            // Check cache for token first
+            if (\Illuminate\Support\Facades\Cache::has('fabi_token')) {
+                $token = \Illuminate\Support\Facades\Cache::get('fabi_token');
+                $this->authToken = $token;
+
+                // We still returned the cached login data if available to avoid unnecessary login calls,
+                // but let's reduce its lifetime or ensure it doesn't block store updates.
+                // Actually, the user wants us to update stores whenever possible.
+                // If we have a token, we can still call login to get fresh store data,
+                // or we can just rely on the token and call getStores elsewhere.
+                
+                // Let's only return cached data if it's very fresh (e.g. 5 minutes)
+                // Otherwise, let's proceed to login to get fresh stores/brands.
+                if (\Illuminate\Support\Facades\Cache::has('fabi_login_data')) {
+                   return \Illuminate\Support\Facades\Cache::get('fabi_login_data');
+                }
+            }
+
             $response = Http::withHeaders($this->getHeaders(false))
                 ->post($this->baseUrl.'/accounts/v1/user/login', [
                     'email' => $email,
@@ -64,6 +82,12 @@ class FabiService
                 // Store the auth token for future requests
                 if (isset($data['data']['token'])) {
                     $this->authToken = $data['data']['token'];
+
+                    // Cache token for 23 hours
+                    \Illuminate\Support\Facades\Cache::put('fabi_token', $this->authToken, now()->addHours(23));
+                    
+                    // Cache full login data for only 30 minutes to ensure stores are refreshed periodically
+                    \Illuminate\Support\Facades\Cache::put('fabi_login_data', $data, now()->addMinutes(30));
                 }
 
                 return $data;
@@ -228,6 +252,42 @@ class FabiService
             throw new Exception('Get sale by date failed: '.$response->body());
         } catch (Exception $e) {
             Log::error('FabiService getSaleByDate error: '.$e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Get revenue overview
+     *
+     * @param  int  $startDate  Timestamp in milliseconds
+     * @param  int  $endDate  Timestamp in milliseconds
+     *
+     * @throws Exception
+     */
+    public function getRevenueOverview(
+        string $companyUid,
+        string $brandUid,
+        string $listStoreUid,
+        int $startDate,
+        int $endDate
+    ): array {
+        try {
+            $response = Http::withHeaders($this->getHeaders())
+                ->get($this->baseUrl.'/v1/reports/sale-summary/overview', [
+                    'company_uid' => $companyUid,
+                    'brand_uid' => $brandUid,
+                    'list_store_uid' => $listStoreUid,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            throw new Exception('Get revenue overview failed: '.$response->body());
+        } catch (Exception $e) {
+            Log::error('FabiService getRevenueOverview error: '.$e->getMessage());
             throw $e;
         }
     }

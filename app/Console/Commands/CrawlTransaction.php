@@ -2,6 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Category;
+use App\Models\Order;
+use App\Models\Store;
+use App\Models\Transaction;
 use App\Services\FabiService;
 use Illuminate\Console\Command;
 
@@ -38,19 +42,16 @@ class CrawlTransaction extends Command
         $companyUid = $data['data']['company']['id'];
         $stores = $data['data']['stores'];
 
-        // $startDate = $fabiService->dateToTimestamp(date('Y-m-d'));
-        // $endDate = $fabiService->dateToTimestamp(date('Y-m-d'), true);
         $day = (int) env('DAY_START_MONTH', 18);
 
-        // Lấy ngày hiện tại
+        // Calculate date range
         $now = now();
-
-        // Tính ngày 18 tháng hiện tại
         $currentMonthDay = $now->copy()->day($day);
-        // startDate = đầu ngày 18 tháng trước
+
+        // startDate = start of 18th of previous month
         $startDate = (string) $currentMonthDay->copy()->subMonth()->startOfDay()->timestamp.'000';
 
-        // endDate = cuối ngày 18 tháng hiện tại
+        // endDate = end of 18th of current month
         $endDate = (string) $currentMonthDay->copy()->endOfDay()->timestamp.'000';
 
         foreach ($stores as $store) {
@@ -58,13 +59,25 @@ class CrawlTransaction extends Command
             $storeUid = $store['id'];
             $storeName = $store['store_name'];
 
+            $shortName = implode(' ', array_slice(explode(' ', $storeName), 0, 2));
+
+            Store::updateOrCreate(
+                ['ipos_id' => $storeUid],
+                [
+                    'name' => $storeName,
+                    'short_name' => $shortName,
+                    'active' => $store['active'] ?? true,
+                    'brand_uid' => $brandUid,
+                    'company_uid' => $companyUid,
+                ]
+            );
+
             $this->info("Crawling transactions for store: {$storeName}");
 
             $allTransactions = [];
             $page = 1;
 
             try {
-
                 $response = $fabiService->getCashInOut(
                     $companyUid,
                     $brandUid,
@@ -78,13 +91,13 @@ class CrawlTransaction extends Command
                     $allTransactions = array_merge($allTransactions, $response['data']);
                     $page++;
                 } else {
-                    return;
+                    continue;
                 }
 
                 // Sync logic
                 $apiCashIds = array_column($allTransactions, 'cash_id');
 
-                \App\Models\Transaction::where('store_uid', $storeUid)
+                Transaction::where('store_uid', $storeUid)
                     ->whereBetween('time', [$startDate, $endDate])
                     ->whereNotIn('cash_id', $apiCashIds)
                     ->delete();
@@ -95,9 +108,67 @@ class CrawlTransaction extends Command
                         continue;
                     }
 
-                    \App\Models\Transaction::updateOrCreate(
+                    $note = $transaction['note'] ?? '';
+                    $professionUid = $transaction['profession_uid'];
+                    $professionName = $transaction['profession_name'];
+                    $existCategory = null;
+
+                    // Logic 1: Preprocessing "Quân" -> "Tiền ship từ kho"
+                    if (stripos($note, 'Quân') !== false) {
+                        $professionName = 'Tiền ship từ kho';
+                        $cat = Category::where('name', 'Tiền ship từ kho')->first();
+
+                        if ($cat) {
+                            $existCategory = $cat;
+                            $professionUid = $cat->ipos_id;
+                        } else {
+                            $existCategory = Category::firstOrCreate(
+                                ['name' => 'Tiền ship từ kho'],
+                                ['used_for_local' => true]
+                            );
+                        }
+                    } else {
+                        $existCategory = Category::where('ipos_id', $professionUid)->first();
+                    }
+
+                    if (! $existCategory && $professionUid) {
+                        $existCategory = Category::create([
+                            'ipos_id' => $professionUid,
+                            'name' => $professionName,
+                            'used_for_local' => true,
+                        ]);
+                    }
+
+                    // Logic 2: Validation Flag
+                    $flag = 'review';
+                    $tranTime = $transaction['time']; // Timestamp ms
+                    if ($tranTime) {
+                        $startTime = $tranTime - 86400000; // -1 day
+                        $endTime = $tranTime + 86400000;   // +1 day
+
+                        $orders = Order::where('store_uid', $storeUid)
+                            ->whereBetween('tran_date', [$startTime, $endTime])
+                            ->get();
+
+                        $tranIds = [];
+                        foreach ($orders as $o) {
+                            if ($o->tran_id) {
+                                $tranIds[] = substr($o->tran_id, -5);
+                            }
+                        }
+
+                        foreach ($tranIds as $tid) {
+                            if ($tid && stripos($note, $tid) !== false) {
+                                $flag = 'valid';
+                                break;
+                            }
+                        }
+                    }
+
+                    Transaction::updateOrCreate(
                         ['cash_id' => $transaction['cash_id']],
                         [
+                            'category_id' => $existCategory ? $existCategory->id : null,
                             'amount' => $transaction['amount'] ?? null,
                             'brand_uid' => $transaction['brand_uid'] ?? null,
                             'company_uid' => $transaction['company_uid'] ?? null,
@@ -111,8 +182,8 @@ class CrawlTransaction extends Command
                             'note' => $transaction['note'] ?? null,
                             'payment_method_id' => $transaction['payment_method_id'] ?? null,
                             'payment_method_name' => $transaction['payment_method_name'] ?? null,
-                            'profession_name' => $transaction['profession_name'] ?? null,
-                            'profession_uid' => $transaction['profession_uid'] ?? null,
+                            'profession_name' => $professionName,
+                            'profession_uid' => $professionUid,
                             'shift_id' => $transaction['shift_id'] ?? null,
                             'shift_name' => $transaction['shift_name'] ?? null,
                             'store_uid' => $transaction['store_uid'] ?? null,
@@ -120,6 +191,7 @@ class CrawlTransaction extends Command
                             'type' => $transaction['type'] ?? null,
                             'updated_at' => $transaction['updated_at'] ?? null,
                             'updated_by' => $transaction['updated_by'] ?? null,
+                            'flag' => $flag,
                         ]
                     );
                 }

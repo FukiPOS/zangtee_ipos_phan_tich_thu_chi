@@ -198,4 +198,62 @@ class FabiHelper
         $authData = self::authData();
         return $authData['user_permissions'] ?? null;
     }
+
+    /**
+     * Sync stores to session and database
+     */
+    public static function syncStores(array $stores): void
+    {
+        // Update Session
+        Session::put('fabi_stores', $stores);
+
+        // Update Database
+        $companyId = self::companyId();
+        foreach ($stores as $store) {
+            $data = [
+                'name' => $store['store_name'] ?? ($store['name'] ?? ''),
+                'short_name' => implode(' ', array_slice(explode(' ', $store['store_name'] ?? ($store['name'] ?? '')), 0, 2)),
+                'active' => (isset($store['active']) && $store['active'] == 1),
+                'brand_uid' => $store['brand_uid'] ?? null,
+            ];
+
+            if ($companyId) {
+                $data['company_uid'] = $companyId;
+            }
+
+            \App\Models\Store::updateOrCreate(
+                ['ipos_id' => $store['id'] ?? ($store['ipos_id'] ?? null)],
+                $data
+            );
+        }
+    }
+
+    /**
+     * Update auth data in session
+     */
+    public static function updateAuthData(array $data): void
+    {
+        if (isset($data['token'])) {
+            Session::put('fabi_token', $data['token']);
+        }
+
+        if (isset($data['user'])) {
+            Session::put('fabi_user', $data['user']);
+        }
+
+        if (isset($data['company'])) {
+            Session::put('fabi_company', $data['company']);
+        }
+
+        if (isset($data['brands'])) {
+            Session::put('fabi_brands', $data['brands']);
+        }
+
+        if (isset($data['stores'])) {
+            self::syncStores($data['stores']);
+        }
+
+        // Store entire auth data
+        Session::put('fabi_auth', $data);
+    }
 }

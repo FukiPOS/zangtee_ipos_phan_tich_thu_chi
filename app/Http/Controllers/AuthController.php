@@ -51,15 +51,8 @@ class AuthController extends Controller
 
             // Check if login was successful
             if (isset($response['data']) && isset($response['data']['token'])) {
-                // Store the entire response in session
-                Session::put('fabi_auth', $response['data']);
-                Session::put('fabi_token', $response['data']['token']);
-                
-                // Store commonly used data for easy access
-                Session::put('fabi_user', $response['data']['user']);
-                Session::put('fabi_company', $response['data']['company']);
-                Session::put('fabi_brands', $response['data']['brands']);
-                Session::put('fabi_stores', $response['data']['stores']);
+                // Use FabiHelper to update all session data and sync stores to DB
+                FabiHelper::updateAuthData($response['data']);
 
                 Log::info('User logged in successfully', [
                     'email' => $request->email,
@@ -91,7 +84,7 @@ class AuthController extends Controller
     public function logout()
     {
         Log::info('User logged out', ['user_id' => FabiHelper::userId()]);
-        
+
         FabiHelper::logout();
 
         return redirect()->route('login')->with('success', 'Đăng xuất thành công!');
@@ -104,11 +97,31 @@ class AuthController extends Controller
      */
     public function me()
     {
+        // Try to update stores from API if possible
+        try {
+            $token = FabiHelper::token();
+            $companyId = FabiHelper::companyId();
+            $brandId = FabiHelper::defaultBrandId();
+
+            if ($token && $companyId && $brandId) {
+                $this->fabiService->setAuthToken($token);
+                $response = $this->fabiService->getStores($companyId, $brandId);
+                
+                if (isset($response['data']) && is_array($response['data'])) {
+                    FabiHelper::syncStores($response['data']);
+                }
+            }
+        } catch (Exception $e) {
+            Log::warning('Could not refresh stores in me()', ['error' => $e->getMessage()]);
+        }
+
+        $stores = \App\Helpers\FabiHelper::activeStores();
+
         return response()->json([
             'user' => FabiHelper::user(),
             'company' => FabiHelper::company(),
             'brands' => FabiHelper::brands(),
-            'stores' => FabiHelper::stores(),
+            'stores' => $stores,
             'isOwner' => FabiHelper::isOwner(),
             'userRole' => FabiHelper::userRole(),
         ]);

@@ -102,11 +102,13 @@ updated_by
             $table->string('payment_method_name')->nullable();
             $table->string('profession_name')->nullable();
             $table->string('profession_uid')->nullable();
+            $table->integer('category_id')->nullable();
             $table->string('shift_id')->nullable();
             $table->string('shift_name')->nullable();
             $table->string('store_uid')->nullable();
             $table->string('time')->nullable();
             $table->string('type')->nullable();
+            $table->boolean('mark_as_done')->default(false);
             $table->string('updated_at')->nullable();
             $table->string('updated_by')->nullable();
         });
