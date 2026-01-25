@@ -38,7 +38,7 @@ class CrawlOrder extends Command
         $companyUid = $data['data']['company']['id'];
         $stores = $data['data']['stores'];
 
-        $startDate = $fabiService->dateToTimestamp(date('Y-m-d'));
+        $startDate = $fabiService->dateToTimestamp(date('Y-m-d', strtotime('48 day ago')));
         $endDate = $fabiService->dateToTimestamp(date('Y-m-d'), true);
 
         foreach ($stores as $store) {
@@ -63,8 +63,8 @@ class CrawlOrder extends Command
 
             $this->info("Crawling orders for store: {$storeName}");
 
-            $allOrders = [];
             $page = 1;
+            $processedApiIds = [];
 
             try {
                 do {
@@ -78,46 +78,42 @@ class CrawlOrder extends Command
                     );
 
                     if (! empty($sales['data'])) {
-                        $allOrders = array_merge($allOrders, $sales['data']);
+                        foreach ($sales['data'] as $order) {
+                            if (! isset($order['tran_id'])) {
+                                continue;
+                            }
+
+                            $processedApiIds[] = $order['tran_id'];
+
+                            \App\Models\Order::updateOrCreate(
+                                ['tran_id' => $order['tran_id']],
+                                [
+                                    'foodbook_order_id' => $order['foodbook_order_id'],
+                                    'store_uid' => $storeUid,
+                                    'tran_date' => $order['tran_date'] ?? null,
+                                    'source_fb_id' => $order['source_fb_id'] ?? null,
+                                    'tran_id' => $order['tran_id'] ?? null,
+                                    'tran_no' => $order['tran_no'] ?? null,
+                                    'start_date' => $order['start_date'] ?? null,
+                                    'amount_origin' => $order['amount_origin'] ?? 0,
+                                    'payment_method_id' => $order['payment_method'][0]['payment_method_id'] ?? null,
+                                    'payment_amout' => $order['payment_method'][0]['amount'] ?? null,
+                                    'raw_data' => json_encode($order),
+                                    'sale_note' => $order['sale_note'] ?? null,
+                                ]
+                            );
+                        }
                         $page++;
                     } else {
                         break;
                     }
                 } while (! empty($sales['data']));
 
-                // Sync logic
-                $apiOrderIds = array_column($allOrders, 'tran_id');
-
                 // Delete orders that are in DB but not in API response for this period
                 \App\Models\Order::where('store_uid', $storeUid)
                     ->whereBetween('start_date', [$startDate, $endDate])
-                    ->whereNotIn('tran_id', $apiOrderIds)
+                    ->whereNotIn('tran_id', $processedApiIds)
                     ->delete();
-
-                // Create or update orders
-                foreach ($allOrders as $order) {
-                    if (! isset($order['tran_id'])) {
-                        continue;
-                    }
-
-                    \App\Models\Order::updateOrCreate(
-                        ['tran_id' => $order['tran_id']],
-                        [
-                            'foodbook_order_id' => $order['foodbook_order_id'],
-                            'store_uid' => $storeUid,
-                            'tran_date' => $order['tran_date'] ?? null,
-                            'source_fb_id' => $order['source_fb_id'] ?? null,
-                            'tran_id' => $order['tran_id'] ?? null,
-                            'tran_no' => $order['tran_no'] ?? null,
-                            'start_date' => $order['start_date'] ?? null,
-                            'amount_origin' => $order['amount_origin'] ?? 0,
-                            'payment_method_id' => $order['payment_method'][0]['payment_method_id'] ?? null,
-                            'payment_amout' => $order['payment_method'][0]['amount'] ?? null,
-                            'raw_data' => json_encode($order),
-                            'sale_note' => $order['sale_note'] ?? null,
-                        ]
-                    );
-                }
             } catch (\Exception $e) {
                 $this->error("Failed to crawl store {$storeName}: {$e->getMessage()}");
             }

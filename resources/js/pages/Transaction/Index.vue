@@ -26,7 +26,7 @@ const props = defineProps<{
         total: number;
     };
     stores: Array<any>;
-    categories: Array<any>;
+
     professions: Array<{ id: number; label: string }>;
     filters: {
         store_uid: string;
@@ -121,7 +121,7 @@ const isEditOpen = ref(false);
 const editingTransaction = ref<any>(null);
 const editForm = useForm({
     profession_id: '',
-    category_id: '',
+
     flag: '',
     review_status: '',
 });
@@ -129,7 +129,7 @@ const editForm = useForm({
 const openEdit = (transaction: any) => {
     editingTransaction.value = transaction;
     editForm.profession_id = transaction.profession_id || '';
-    editForm.category_id = transaction.category_id || '';
+
     editForm.flag = transaction.flag || 'review';
     editForm.review_status = transaction.review_status || '';
     isEditOpen.value = true;
@@ -147,20 +147,8 @@ const submitEdit = () => {
     });
 };
 
-// Sync profession name when category selected
-// Sync profession name when category selected
-watch(() => editForm.category_id, (newVal) => {
-    if (newVal) {
-        const cat = props.categories.find(c => c.id == newVal);
-        if (cat) {
-            // Try to find matching profession by name
-            const prof = props.professions.find(p => p.label.startsWith(cat.name));
-            if (prof) {
-                editForm.profession_id = prof.id;
-            }
-        }
-    }
-});
+
+
 </script>
 
 <template>
@@ -367,19 +355,9 @@ watch(() => editForm.category_id, (newVal) => {
                     </DialogDescription>
                 </DialogHeader>
                 <div class="grid gap-4 py-4">
+
                     <div class="grid grid-cols-4 items-center gap-4">
                         <Label class="text-right dark:text-zinc-300">Mục chi</Label>
-                        <div class="col-span-3">
-                             <select v-model="editForm.category_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
-                                <option value="">-- Chọn mục chi --</option>
-                                <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                                    {{ cat.name }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-4 items-center gap-4">
-                        <Label class="text-right dark:text-zinc-300">Tên mục chi</Label>
                         <div class="col-span-3">
                              <select v-model="editForm.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
                                 <option value="">-- Chọn tên mục chi --</option>

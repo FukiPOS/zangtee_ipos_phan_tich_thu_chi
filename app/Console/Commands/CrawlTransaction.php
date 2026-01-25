@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Category;
 use App\Models\Order;
 use App\Models\Profession;
 use App\Models\Store;
@@ -57,6 +56,16 @@ class CrawlTransaction extends Command
 
         // endDate = end of 18th of current month
         $endDate = (string) $currentMonthDay->copy()->endOfDay()->timestamp.'000';
+
+        // Calculate fetch range (add 1 day buffer for validation window)
+        $fetchStartDate = ($startDate - 86400000);
+        $fetchEndDate = ($endDate + 86400000);
+
+        // Fetch all relevant orders and professions once
+        $orderQuery = Order::where('start_date', '>', $fetchStartDate)->where('start_date', '<', $fetchEndDate);
+
+        $allOrders = $orderQuery->get(['tran_id', 'start_date', 'store_uid', 'payment_method_id']);
+        $allProfessions = Profession::all();
 
         foreach ($stores as $store) {
             $brandUid = $store['brand_uid'];
@@ -116,75 +125,71 @@ class CrawlTransaction extends Command
                     $professionUid = $transaction['profession_uid'];
                     $professionName = $transaction['profession_name'];
 
-                    // Logic: Professions check/create
-                    // If profession_uid exists from IPOS, try to find by that.
-                    // If not, try to find by name.
-                    // If note has "Quân", override professionName to "Tiền ship từ kho" (Logic 1 legacy)
-                    // Wait, user said: "Khi crawl_transaction từ ipos bạn cần xem có profession nào mới không (ipos dùng profession_uid) nếu có thì tạo mới và đừng quên cột ipos_profession_uid, nếu profession là local thì cho cột ipos_profession_uid null"
-
-                    // Pre-processing "Quân" legacy logic - might still be needed if it was important classification?
-                    // Previous code:
-                    // if (stripos($note, 'Quân') !== false) {
-                    //     $professionName = 'Tiền ship từ kho';
-                    //     // It did some Category logic here too.
-                    // }
-                    // I'll keep the name override but apply it to finding/creating a Profession.
-
                     if (stripos($note, 'Quân') !== false) {
                         $professionName = 'Tiền ship từ kho';
-                        // For "Tiền ship từ kho", it's a local concept, so ipos_profession_uid should likely be null or ignored if we are overriding?
-                        // But original code tried to find a category with that name.
-                        // Let's assume we treat it as a Profession with NULL uid if it's "Quân".
+                    } elseif (stripos($note, 'bếp') !== false) {
+                        $professionName = 'Tiền ship từ bếp';
                     }
 
                     $profession = null;
 
                     if ($professionUid) {
-                        $profession = Profession::where('ipos_profession_uid', $professionUid)->first();
+                        $profession = $allProfessions->where('ipos_profession_uid', $professionUid)->first();
                     }
 
                     if (! $profession && $professionName) {
-                        $profession = Profession::where('name', $professionName)->first();
+                        $profession = $allProfessions->where('name', $professionName)->first();
                     }
 
                     if (! $profession) {
                         // Create new
-                        $isLocal = empty($professionUid) || stripos($note, 'Quân') !== false;
+                        $isLocal = empty($professionUid) || stripos($note, 'Quân') !== false || stripos($note, 'bếp') !== false;
 
                         $profession = Profession::create([
                             'name' => $professionName,
                             'ipos_profession_uid' => $isLocal ? null : $professionUid,
                         ]);
+                        $allProfessions->push($profession);
                     } elseif ($professionUid && $profession->ipos_profession_uid !== $professionUid) {
-                        // Update UID if populated?
-                        // If we found by name but UID was missing locally, maybe update it?
                         if (empty($profession->ipos_profession_uid)) {
                             $profession->update(['ipos_profession_uid' => $professionUid]);
                         }
                     }
 
-                    // Logic 2: Validation Flag (Kept same)
+                    // Logic 2: Validation Flag
                     $flag = 'review';
-                    $tranTime = $transaction['time']; // Timestamp ms
-                    if ($tranTime) {
-                        $startTime = $tranTime - 86400000; // -1 day
-                        $endTime = $tranTime + 86400000;   // +1 day
+                    if ($professionName === 'Chi phí vận chuyển') {
+                        $orderCode = $this->extractOrderCode($note);
+                        if (! $orderCode) {
+                            $flag = 'review';
+                        } else {
+                            $foundOrder = $allOrders->filter(function ($o) use ($orderCode, $startDate, $endDate) {
+                                return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode) !== false || stripos($o->source_fb_id, $orderCode) !== false);
+                            })->first();
 
-                        $orders = Order::where('store_uid', $storeUid)
-                            ->whereBetween('tran_date', [$startTime, $endTime])
-                            ->get();
-
-                        $tranIds = [];
-                        foreach ($orders as $o) {
-                            if ($o->tran_id) {
-                                $tranIds[] = substr($o->tran_id, -5);
+                            if ($foundOrder) {
+                                $flag = $this->isValidPaymentForOrder($foundOrder) ? 'valid' : 'invalid';
+                            } else {
+                                $flag = 'invalid';
                             }
                         }
+                    } else {
+                        $tranTime = $transaction['time']; // Timestamp ms
+                        if ($tranTime) {
+                            $startTime = $tranTime - 86400000; // -1 day
+                            $endTime = $tranTime + 86400000;   // +1 day
 
-                        foreach ($tranIds as $tid) {
-                            if ($tid && stripos($note, $tid) !== false) {
-                                $flag = 'valid';
-                                break;
+                            $filteredOrders = $allOrders->where('store_uid', $storeUid)
+                                ->whereBetween('tran_date', [$startTime, $endTime]);
+
+                            foreach ($filteredOrders as $o) {
+                                if ($o->tran_id) {
+                                    $tid = substr($o->tran_id, -5);
+                                    if ($tid && stripos($note, $tid) !== false) {
+                                        $flag = 'valid';
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -198,16 +203,6 @@ class CrawlTransaction extends Command
                     Transaction::withTrashed()->updateOrCreate(
                         ['cash_id' => $transaction['cash_id']],
                         [
-                            // 'category_id' => $existCategory ? $existCategory->id : null,
-                            // Removing category_id for now as user didn't mention it, but original code had it.
-                            // If we need to keep Category syncing, we might need to check if a Category exists for this Profession Name?
-                            // The user didn't explicitly say "delete categories". But "Transactions will link with profession_id".
-                            // I will leave category_id alone (nullable) or try to preserve it if it was doing something useful.
-                            // Original code: assigned category_id if found.
-                            // Let's comment it out or keep it if easy. logic 1 used category to find profession.
-                            // I'll skip category_id assignment for now to focus on Profession, unless it crashes.
-                            // 'category_id' => null, // or keep existing logic if we want to mix?
-                            // Let's rely on the DB default (nullable).
 
                             'amount' => $transaction['amount'] ?? null,
                             'brand_uid' => $transaction['brand_uid'] ?? null,
@@ -241,5 +236,50 @@ class CrawlTransaction extends Command
                 $this->error("Failed to crawl store {$storeName}: {$e->getMessage()}");
             }
         }
+    }
+
+    public function extractOrderCode(string $note): ?string
+    {
+        if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
+            return $matches[0];
+        }
+
+        return null;
+    }
+
+    public function isValidPaymentForOrder($order)
+    {
+        if (! $order) {
+            return false;
+        }
+
+        $orderTranId = $order->tran_id;
+
+        if ($order->payment_method_id == 'MOMO_QR_AIO') {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function extractDistanceKm(string $note): ?float
+    {
+        $note = strtolower($note);
+
+        // Bắt số đứng trước "km"
+        if (! preg_match('/(\d+(?:[.,]\d+)?)\s*km/', $note, $m)) {
+            return null;
+        }
+
+        // Chuẩn hóa: , -> .
+        $raw = str_replace(',', '.', $m[1]);
+        $km = (float) $raw;
+
+        // Chặn giá trị vô lý (3.485 => 3485 sẽ bị loại)
+        if ($km <= 0 || $km >= 20) {
+            return null;
+        }
+
+        return round($km, 2);
     }
 }

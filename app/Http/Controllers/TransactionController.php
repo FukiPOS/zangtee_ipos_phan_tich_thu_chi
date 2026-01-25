@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Category;
+
 use App\Models\Store;
 use App\Models\Transaction;
 use Carbon\Carbon;
@@ -83,7 +83,7 @@ class TransactionController extends Controller
         return Inertia::render('Transaction/Index', [
             'transactions' => $transactions,
             'stores' => Store::where('active', 1)->get(),
-            'categories' => Category::where('used_for_local', true)->get(),
+
             'professions' => $professionStats,
             'filters' => [
                 'from_date' => $fromDate ?: $defaultStartDate->format('Y-m-d'),
@@ -101,7 +101,7 @@ class TransactionController extends Controller
 
         $validated = $request->validate([
             'profession_id' => 'nullable|exists:professions,id',
-            'category_id' => 'nullable|integer',
+
             'flag' => 'required|in:valid,review,invalid',
             'review_status' => 'nullable|string',
         ]);
