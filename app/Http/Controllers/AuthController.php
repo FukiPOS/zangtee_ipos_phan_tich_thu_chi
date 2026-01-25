@@ -54,9 +54,32 @@ class AuthController extends Controller
                 // Use FabiHelper to update all session data and sync stores to DB
                 FabiHelper::updateAuthData($response['data']);
 
+                // Sync user to database and store ipos_token
+                $fabiUser = $response['data']['user'];
+                $token = $response['data']['token'];
+                
+                $user = \App\Models\User::where('email', $fabiUser['email'])->first();
+
+                if (! $user) {
+                    $user = \App\Models\User::create([
+                        'email' => $fabiUser['email'],
+                        'name' => $fabiUser['full_name'],
+                        'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(16)),
+                        'ipos_token' => $token,
+                    ]);
+                } else {
+                    $user->update([
+                        'name' => $fabiUser['full_name'],
+                        'ipos_token' => $token,
+                    ]);
+                }
+
+                // Log the user in
+                \Illuminate\Support\Facades\Auth::login($user);
+
                 Log::info('User logged in successfully', [
                     'email' => $request->email,
-                    'user_id' => $response['data']['user']['id']
+                    'user_id' => $user->id
                 ]);
 
                 return redirect()->route('dashboard')->with('success', 'Đăng nhập thành công!');

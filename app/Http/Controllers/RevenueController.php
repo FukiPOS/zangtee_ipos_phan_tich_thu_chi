@@ -38,16 +38,13 @@ class RevenueController extends Controller
         // We need to call FabiService. But FabiService::login needs credentials.
         // We assume env credentials or cached token.
         $fabi = new FabiService;
-        try {
-            // Ensure logged in
-            if (! $fabi->getAuthToken()) {
-                $loginData = $fabi->login(env('IPOS_USERNAME'), env('IPOS_PASSWORD'));
-                if (isset($loginData['data'])) {
-                    \App\Helpers\FabiHelper::updateAuthData($loginData['data']);
-                }
-            }
-        } catch (\Exception $e) {
-            // ignore
+
+        // Use token from logged in user (DB) or session
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if ($user && $user->ipos_token) {
+            $fabi->setAuthToken($user->ipos_token);
+        } elseif ($token = \App\Helpers\FabiHelper::token()) {
+            $fabi->setAuthToken($token);
         }
 
         // Ideally, we shouldn't loop API calls in controller.
@@ -66,7 +63,6 @@ class RevenueController extends Controller
         // or implementing the API call if I knew the multi-store syntax.
         // The example curl has `list_store_uid=uid`. Maybe comma separated?
 
-
         // Calculation from DB (Transactions) for Summary (respected filter)
         $expenses = Transaction::whereBetween('time', [$startMs, $endMs])
             ->when($request->store_uid, fn ($q) => $q->where('store_uid', $request->store_uid))
@@ -76,6 +72,7 @@ class RevenueController extends Controller
             ->map(function ($items, $id) {
                 $first = $items->first();
                 $name = $first->profession ? $first->profession->name : 'Chưa phân loại';
+
                 return [
                     'id' => $id,
                     'name' => $name,
@@ -94,16 +91,16 @@ class RevenueController extends Controller
             ->map(function ($items, $id) {
                 $first = $items->first();
                 $professionName = $first->profession ? $first->profession->name : 'Chưa phân loại';
-                
+
                 // Group by store within this profession
-                $storesData = $items->groupBy('store_uid')->map(function($storeItems, $storeUid) {
+                $storesData = $items->groupBy('store_uid')->map(function ($storeItems, $storeUid) {
                     $firstStore = $storeItems->first();
                     $storeName = $firstStore->store ? $firstStore->store->name : $storeUid;
                     // Use short_name if available, else name
                     if ($firstStore->store && $firstStore->store->short_name) {
                         $storeName = $firstStore->store->short_name;
                     }
-                    
+
                     return [
                         'uid' => $storeUid,
                         'name' => $storeName,
@@ -114,7 +111,7 @@ class RevenueController extends Controller
                 return [
                     'id' => $id,
                     'name' => $professionName,
-                    'stores' => $storesData
+                    'stores' => $storesData,
                 ];
             })
             ->values();
