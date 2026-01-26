@@ -34,6 +34,8 @@ const props = defineProps<{
         to_date: string;
         search: string;
         profession_id: string;
+        flag: string;
+        system_flag: string;
     };
 }>();
 
@@ -43,6 +45,8 @@ const form = ref({
     to_date: props.filters.to_date || '',
     search: props.filters.search || '',
     profession_id: props.filters.profession_id || '',
+    flag: props.filters.flag || '',
+    system_flag: props.filters.system_flag || '',
 });
 
 const submitFilter = () => {
@@ -149,6 +153,12 @@ const submitEdit = () => {
 
 
 
+const statusLabels: Record<string, string> = {
+    valid: 'Đồng ý',
+    review: 'Chờ duyệt',
+    invalid: 'Từ chối'
+};
+
 </script>
 
 <template>
@@ -162,7 +172,7 @@ const submitEdit = () => {
         </template>
 
         <div class="py-6 lg:py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="max-w-9xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white dark:bg-zinc-900 overflow-hidden shadow-xl sm:rounded-lg p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 transition-colors duration-200">
                     
                     <!-- Filters -->
@@ -194,6 +204,24 @@ const submitEdit = () => {
                             <Input type="date" v-model="form.to_date" class="w-full h-10 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 block" />
                         </div>
                         <div>
+                            <Label class="block mb-2 font-medium dark:text-zinc-300">QL duyệt</Label>
+                            <select v-model="form.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
+                                <option value="">Tất cả</option>
+                                <option value="valid">Đồng ý</option>
+                                <option value="review">Chưa rõ</option>
+                                <option value="invalid">Từ chối</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label class="block mb-2 font-medium dark:text-zinc-300">Hệ thống duyệt</Label>
+                            <select v-model="form.system_flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
+                                <option value="">Tất cả</option>
+                                <option value="valid">Đồng ý</option>
+                                <option value="review">Chưa rõ</option>
+                                <option value="invalid">Từ chối</option>
+                            </select>
+                        </div>
+                        <div>
                             <Label class="block mb-2 font-medium dark:text-zinc-300">Tìm kiếm (Note)</Label>
                             <Input type="text" v-model="form.search" placeholder="Nội dung..." class="w-full h-10 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 block" />
                         </div>
@@ -208,9 +236,9 @@ const submitEdit = () => {
                             Đã chọn {{ selectedIds.length }} giao dịch
                         </div>
                         <div class="flex gap-2">
-                            <Button size="sm" class="bg-green-600 hover:bg-green-700" @click="submitBulkUpdate('valid')">Valid</Button>
-                            <Button size="sm" class="bg-yellow-600 hover:bg-yellow-700" @click="submitBulkUpdate('review')">Review</Button>
-                            <Button size="sm" class="bg-red-600 hover:bg-red-700" @click="submitBulkUpdate('invalid')">Invalid</Button>
+                            <Button size="sm" class="bg-green-600 hover:bg-green-700" @click="submitBulkUpdate('valid')">Đồng ý</Button>
+                            <Button size="sm" class="bg-yellow-600 hover:bg-yellow-700" @click="submitBulkUpdate('review')">Chờ duyệt</Button>
+                            <Button size="sm" class="bg-red-600 hover:bg-red-700" @click="submitBulkUpdate('invalid')">Từ chối</Button>
                         </div>
                     </div>
 
@@ -228,6 +256,7 @@ const submitEdit = () => {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Số tiền</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục chi (Profession)</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Trạng thái (Flag)</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">System Flag</th>
                                     <th class="px-6 py-3"></th>
                                 </tr>
                             </thead>
@@ -257,7 +286,17 @@ const submitEdit = () => {
                                             'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': tran.flag === 'review',
                                             'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': tran.flag === 'invalid',
                                         }">
-                                            {{ tran.flag }}
+                                            {{ statusLabels[tran.flag] || tran.flag }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span :class="{
+                                            'px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border border-zinc-200 dark:border-zinc-700': true,
+                                            'text-green-600 dark:text-green-400': tran.system_flag === 'valid',
+                                            'text-yellow-600 dark:text-yellow-400': tran.system_flag === 'review',
+                                            'text-red-600 dark:text-red-400': tran.system_flag === 'invalid',
+                                        }">
+                                            {{ statusLabels[tran.system_flag] || tran.system_flag || 'N/A' }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -293,7 +332,7 @@ const submitEdit = () => {
                                     'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': tran.flag === 'review',
                                     'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': tran.flag === 'invalid',
                                 }">
-                                    {{ tran.flag }}
+                                    {{ statusLabels[tran.flag] || tran.flag }}
                                 </span>
                             </div>
                             
@@ -371,9 +410,9 @@ const submitEdit = () => {
                         <Label class="text-right dark:text-zinc-300">Trạng thái</Label>
                         <div class="col-span-3">
                             <select v-model="editForm.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
-                                <option value="valid">Hợp lệ (Valid)</option>
-                                <option value="review">Cần review (Review)</option>
-                                <option value="invalid">Không hợp lệ (Invalid)</option>
+                                <option value="valid">Đồng ý</option>
+                                <option value="review">Chờ duyệt</option>
+                                <option value="invalid">Từ chối</option>
                             </select>
                         </div>
                     </div>

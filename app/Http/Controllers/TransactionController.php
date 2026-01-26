@@ -51,6 +51,14 @@ class TransactionController extends Controller
             $query->where('profession_id', $request->profession_id);
         }
 
+        if ($request->filled('flag')) {
+            $query->where('flag', $request->flag);
+        }
+
+        if ($request->filled('system_flag')) {
+            $query->where('system_flag', $request->system_flag);
+        }
+
         $transactions = $query->with('profession')
             ->orderBy('time', 'desc')
             ->paginate($request->input('per_page', 20))
@@ -91,6 +99,8 @@ class TransactionController extends Controller
                 'store_uid' => $request->store_uid,
                 'search' => $request->search,
                 'profession_id' => $request->profession_id,
+                'flag' => $request->flag,
+                'system_flag' => $request->system_flag,
             ],
         ]);
     }

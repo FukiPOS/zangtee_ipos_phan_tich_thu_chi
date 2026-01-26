@@ -64,7 +64,7 @@ class CrawlTransaction extends Command
         // Fetch all relevant orders and professions once
         $orderQuery = Order::where('start_date', '>', $fetchStartDate)->where('start_date', '<', $fetchEndDate);
 
-        $allOrders = $orderQuery->get(['tran_id', 'start_date', 'store_uid', 'payment_method_id']);
+        $allOrders = $orderQuery->get(['tran_id', 'start_date', 'store_uid', 'payment_method_id', 'payment_method_name', 'payment_amout', 'source_fb_id']);
         $allProfessions = Profession::all();
 
         foreach ($stores as $store) {
@@ -156,19 +156,24 @@ class CrawlTransaction extends Command
                         }
                     }
 
+                    $orderCode = $this->extractOrderCode($note);
+                    $foundOrder = null;
+                    if ($orderCode) {
+                        $foundOrder = $allOrders->filter(function ($o) use ($orderCode, $startDate, $endDate) {
+                            return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode) !== false || stripos($o->source_fb_id, $orderCode) !== false);
+                        })->first();
+                    }
+
+                    $distance = $this->extractDistanceKm($note);
+
                     // Logic 2: Validation Flag
                     $flag = 'review';
                     if ($professionName === 'Chi phí vận chuyển') {
-                        $orderCode = $this->extractOrderCode($note);
                         if (! $orderCode) {
                             $flag = 'review';
                         } else {
-                            $foundOrder = $allOrders->filter(function ($o) use ($orderCode, $startDate, $endDate) {
-                                return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode) !== false || stripos($o->source_fb_id, $orderCode) !== false);
-                            })->first();
-
                             if ($foundOrder) {
-                                $flag = $this->isValidPaymentForOrder($foundOrder) ? 'valid' : 'invalid';
+                                $flag = $this->isValidPaymentForOrder($foundOrder, $distance) ? 'valid' : 'invalid';
                             } else {
                                 $flag = 'invalid';
                             }
@@ -180,7 +185,7 @@ class CrawlTransaction extends Command
                             $endTime = $tranTime + 86400000;   // +1 day
 
                             $filteredOrders = $allOrders->where('store_uid', $storeUid)
-                                ->whereBetween('tran_date', [$startTime, $endTime]);
+                                ->whereBetween('start_date', [$startTime, $endTime]); // Use start_date for consistency
 
                             foreach ($filteredOrders as $o) {
                                 if ($o->tran_id) {
@@ -229,6 +234,13 @@ class CrawlTransaction extends Command
                             'updated_at' => $transaction['updated_at'] ?? null,
                             'updated_by' => $transaction['updated_by'] ?? null,
                             'flag' => $flag,
+                            'system_flag' => $flag,
+
+                            // Added order details
+                            'order_payment_method_id' => $foundOrder ? $foundOrder->payment_method_id : null,
+                            'order_payment_amount' => $foundOrder ? $foundOrder->payment_amout : null,
+                            'order_payment_method_name' => $foundOrder ? ($foundOrder->payment_method_name ?? null) : null,
+                            'order_distance' => $distance,
                         ]
                     );
                 }
@@ -247,15 +259,22 @@ class CrawlTransaction extends Command
         return null;
     }
 
-    public function isValidPaymentForOrder($order)
+    public function isValidPaymentForOrder($order, $distance)
     {
         if (! $order) {
             return false;
         }
 
         $orderTranId = $order->tran_id;
+        $orderPaymentAmount = $order->payment_amout;
+        $orderPaymentMethodId = $order->payment_method_id;
+        $orderPaymentMethodName = $order->payment_method_name;
 
-        if ($order->payment_method_id == 'MOMO_QR_AIO') {
+        if ($distance <= 3 && $orderPaymentAmount > 199000) {
+            return true;
+        }
+
+        if ($orderPaymentMethodId == 'MOMO_QR_AIO') {
             return true;
         }
 

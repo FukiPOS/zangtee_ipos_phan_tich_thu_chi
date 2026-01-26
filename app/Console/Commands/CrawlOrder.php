@@ -97,6 +97,7 @@ class CrawlOrder extends Command
                                     'start_date' => $order['start_date'] ?? null,
                                     'amount_origin' => $order['amount_origin'] ?? 0,
                                     'payment_method_id' => $order['payment_method'][0]['payment_method_id'] ?? null,
+                                    'payment_method_name' => $order['payment_method'][0]['payment_method_name'] ?? null,
                                     'payment_amout' => $order['payment_method'][0]['amount'] ?? null,
                                     'raw_data' => json_encode($order),
                                     'sale_note' => $order['sale_note'] ?? null,
