@@ -58,7 +58,7 @@ class CrawlTransaction extends Command
         $endDate = (string) $currentMonthDay->copy()->endOfDay()->timestamp.'000';
 
         // Calculate fetch range (add 1 day buffer for validation window)
-        $fetchStartDate = ($startDate - 86400000);
+        $fetchStartDate = ($startDate - 86400000 * 15);
         $fetchEndDate = ($endDate + 86400000);
 
         // Fetch all relevant orders and professions once
@@ -181,7 +181,7 @@ class CrawlTransaction extends Command
                     } else {
                         $tranTime = $transaction['time']; // Timestamp ms
                         if ($tranTime) {
-                            $startTime = $tranTime - 86400000; // -1 day
+                            $startTime = $tranTime - 86400000 * 15; // -15 day
                             $endTime = $tranTime + 86400000;   // +1 day
 
                             $filteredOrders = $allOrders->where('store_uid', $storeUid)
@@ -252,7 +252,7 @@ class CrawlTransaction extends Command
 
     public function extractOrderCode(string $note): ?string
     {
-        if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
+        if (preg_match('/\b[A-Z0-9_]{5}\b/', $note, $matches)) {
             return $matches[0];
         }
 
