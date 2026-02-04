@@ -24,6 +24,8 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        $middleware->trustProxies(at: '*');
+
         // Register Fabi authentication middleware
         $middleware->alias([
             'fabi.auth' => FabiAuth::class,
