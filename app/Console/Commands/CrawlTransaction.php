@@ -162,6 +162,21 @@ class CrawlTransaction extends Command
                         $foundOrder = $allOrders->filter(function ($o) use ($orderCode, $startDate, $endDate) {
                             return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode) !== false || stripos($o->source_fb_id, $orderCode) !== false);
                         })->first();
+
+                        // Nhân viên hay  nhầm số 0 và chữ O nên phải thử
+                        if (!$foundOrder) {
+                            $orderCodeOto0 = str_replace("O", "0", $orderCode);
+                            $foundOrder = $allOrders->filter(function ($o) use ($orderCodeOto0, $startDate, $endDate) {
+                                return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCodeOto0) !== false || stripos($o->source_fb_id, $orderCodeOto0) !== false);
+                            })->first(); 
+                        }
+
+                        if (!$foundOrder) {
+                            $orderCode0toO = str_replace("0", "O", $orderCode);
+                            $foundOrder = $allOrders->filter(function ($o) use ($orderCode0toO, $startDate, $endDate) {
+                                return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode0toO) !== false || stripos($o->source_fb_id, $orderCode0toO) !== false);
+                            })->first(); 
+                        }
                     }
 
                     $distance = $this->extractDistanceKm($note);
@@ -252,8 +267,24 @@ class CrawlTransaction extends Command
 
     public function extractOrderCode(string $note): ?string
     {
-        if (preg_match('/\b[A-Z0-9_]{5}\b/', $note, $matches)) {
-            return $matches[0];
+        $match = "";
+        if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
+            $match = $matches[0];
+        }
+
+        if (strlen($match) > 0) {
+            $match = str_replace('#', '', $match);
+        }
+
+        // Nếu độ dài >= 5 và có chứa "_" thì chỉ lấy 5 ký tự đầu
+        if (strlen($match) >= 5 && strpos($match, '_') !== false) {
+            $match = substr($match, 0, 5);
+        }
+
+        if (strlen($match) > 0) {
+            echo $match;
+            echo "\n";
+            return $match;
         }
 
         return null;
