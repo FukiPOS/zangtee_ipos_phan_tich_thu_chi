@@ -128,25 +128,25 @@ class CrawlTransaction extends Command
                     $professionUid = $transaction['profession_uid'];
                     $professionName = $transaction['profession_name'];
 
-                    if (stripos($note, 'Quân') !== false) {
+                    $lowerNote = mb_strtolower($note);
+                    if (stripos($lowerNote, 'quân') !== false) {
                         $professionName = 'Tiền ship từ kho';
-                    } elseif (stripos($note, 'bếp') !== false) {
+                        $professionUid = null;
+                    } elseif (stripos($lowerNote, 'bếp') !== false) {
                         $professionName = 'Tiền ship từ bếp';
+                        $professionUid = null;
+                    } elseif (stripos($lowerNote, 'đá') !== false) {
+                        $professionName = 'Chi mua đá viên';
+                        $professionUid = null;
                     }
-
+                    
                     $profession = null;
 
-                    if ($professionUid) {
-                        $profession = $allProfessions->where('ipos_profession_uid', $professionUid)->first();
-                    }
-
-                    if (! $profession && $professionName) {
-                        $profession = $allProfessions->where('name', $professionName)->first();
-                    }
-
+                    $profession = $allProfessions->where('name', $professionName)->first();
+                    
                     if (! $profession) {
                         // Create new
-                        $isLocal = empty($professionUid) || stripos($note, 'Quân') !== false || stripos($note, 'bếp') !== false;
+                        $isLocal = empty($professionUid);
 
                         $profession = Profession::create([
                             'name' => $professionName,
@@ -202,7 +202,14 @@ class CrawlTransaction extends Command
                                 $systemNote = "Không tìm thấy đơn hàng $orderCode trong khoảng thời gian này";
                             }
                         }
-                    } else {
+                    } 
+                    else if ($professionName == 'Chi mua đá viên') {
+                        $validationResult = $this->isValidPaymentForIce($transaction['note'], $transaction['amount']);
+                        $flag = $validationResult['flag'];
+                        $systemNote = $validationResult['note'];
+                    }
+                    else {
+                        // Nếu trót chọn nhầm mục khác (ko phải chi phí vận chuyển) nhưng có tìm thấy mã đơn trong nội dung thì vẫn nhét cho nó vào chi phí vận chuyển
                         $tranTime = $transaction['time']; // Timestamp ms
                         if ($tranTime) {
                             $startTime = $tranTime - 86400000 * 15; // -15 day
@@ -217,6 +224,7 @@ class CrawlTransaction extends Command
                                     if ($tid && stripos($note, $tid) !== false) {
                                         $flag = 'valid';
                                         $systemNote = "Khớp mã giao dịch $tid trong nội dung";
+                                        $profession = $allProfessions->where('name', "Chi phí vận chuyển")->first();
                                         break;
                                     }
                                 }
@@ -303,6 +311,67 @@ class CrawlTransaction extends Command
         }
 
         return null;
+    }
+
+    public function convertVietnameseNumberToDigit($text)
+    {
+        $map = [
+            'một' => 1,
+            'hai' => 2,
+            'ba' => 3,
+            'bốn' => 4,
+            'năm' => 5,
+            'sáu' => 6,
+            'bảy' => 7,
+            'tám' => 8,
+            'chín' => 9,
+        ];
+
+        foreach ($map as $word => $number) {
+            // replace dạng nguyên từ (tránh dính chữ khác)
+            $text = preg_replace('/\b' . $word . '\b/u', $number, $text);
+        }
+
+        return $text;
+    }
+
+    public function isValidPaymentForIce($note, $amount)
+    {
+        $note = $this->convertVietnameseNumberToDigit($note);
+
+        // 1) Regex lấy số đầu tiên trong chuỗi $note, nếu không có thì = 0
+        $numberOfPacket = 0;
+        if (preg_match('/\d+/', $note, $matches)) {
+            $numberOfPacket = (int)$matches[0];
+        }
+
+        // 2) Tính giá tiền
+        $price = $numberOfPacket * 7000;
+
+        // Nếu không có số lượng => invalid
+        if ($numberOfPacket <= 0) {
+            return [
+                'flag' => 'invalid',
+                'note' => 'Không tìm thấy số lượng đá trong nội dung'
+            ];
+        }
+
+        // 3) Kiểm tra chênh lệch < 10%
+        $diff = abs($amount - $price);
+        $percentDiff = ($price > 0) ? ($diff / $price) * 100 : 100;
+
+        if ($percentDiff <= 10) {
+            return [
+                'flag' => 'valid',
+                'note' => "Hợp lệ: {$numberOfPacket} gói đá, giá chuẩn {$price}, thực chi {$amount}"
+            ];
+        }
+
+        // 4) Không hợp lệ
+        return [
+            'flag' => 'invalid',
+            'note' => "Sai lệch > 10%: giá chuẩn cho {$numberOfPacket} là {$price}, thực chi {$amount}"
+        ];
     }
 
     public function isValidPaymentForOrder($order, $distance)

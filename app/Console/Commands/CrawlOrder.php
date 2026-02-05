@@ -38,13 +38,16 @@ class CrawlOrder extends Command
         $companyUid = $data['data']['company']['id'];
         $stores = $data['data']['stores'];
 
-        $startDate = $fabiService->dateToTimestamp(date('Y-m-d', strtotime('48 day ago')));
-        $endDate = $fabiService->dateToTimestamp(date('Y-m-d'), true);
+        $startDate = $fabiService->dateToTimestamp(date('Y-m-d', strtotime('3 day ago')));
+        $endDate = $fabiService->dateToTimestamp(date('Y-m-d', strtotime('0 day ago')), true);
 
         foreach ($stores as $store) {
             $brandUid = $store['brand_uid'];
             $storeUid = $store['id'];
             $storeName = $store['store_name'];
+            // if ($storeName != "CS 3 - 7A ngõ 58 Khúc Thừa Dụ (Cầu Giấy)") {
+            //     continue;
+            // }
 
             // Sync Store Data
             // Sync Store Data

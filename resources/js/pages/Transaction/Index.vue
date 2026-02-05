@@ -158,6 +158,12 @@ const statusLabels: Record<string, string> = {
     invalid: 'Từ chối'
 };
 
+const systemStatusLabels: Record<string, string> = {
+    valid: 'Hợp lý',
+    review: 'Ko rõ',
+    invalid: 'Bất thường'
+};
+
 </script>
 
 <template>
@@ -215,9 +221,9 @@ const statusLabels: Record<string, string> = {
                             <Label class="block mb-2 font-medium dark:text-zinc-300">Hệ thống duyệt</Label>
                             <select v-model="form.system_flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
                                 <option value="">Tất cả</option>
-                                <option value="valid">Đồng ý</option>
-                                <option value="review">Chưa rõ</option>
-                                <option value="invalid">Từ chối</option>
+                                <option value="valid">Hợp lý</option>
+                                <option value="review">Ko rõ</option>
+                                <option value="invalid">Bất thường</option>
                             </select>
                         </div>
                         <div>
@@ -225,7 +231,7 @@ const statusLabels: Record<string, string> = {
                             <Input type="text" v-model="form.search" placeholder="Nội dung..." class="w-full h-10 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700 block" />
                         </div>
                         <div class="flex gap-2">
-                            <Button type="submit" class="w-full md:w-auto h-10">Lọc</Button>
+                            <Button type="submit" class="w-full md:w-auto h-10">Tìm kiếm</Button>
                         </div>
                     </form>
 
@@ -255,7 +261,7 @@ const statusLabels: Record<string, string> = {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Số tiền</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục đích chi</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">QL duyệt</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Hệ thống duyệt</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Hệ thống</th>
                                     <th class="px-6 py-3"></th>
                                 </tr>
                             </thead>
@@ -295,7 +301,7 @@ const statusLabels: Record<string, string> = {
                                             'text-yellow-600 dark:text-yellow-400': tran.system_flag === 'review',
                                             'text-red-600 dark:text-red-400': tran.system_flag === 'invalid',
                                         }">
-                                            {{ statusLabels[tran.system_flag] || tran.system_flag || 'N/A' }}
+                                            {{ systemStatusLabels[tran.system_flag] || tran.system_flag || 'N/A' }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -393,6 +399,26 @@ const statusLabels: Record<string, string> = {
                     </DialogDescription>
                 </DialogHeader>
                 <div class="grid gap-4 py-4">
+                    <div class="grid grid-cols-4 items-start gap-4">
+                        <div class="col-span-4 text-sm text-gray-700 dark:text-zinc-300 space-y-2">
+                             <div class="bg-gray-50 dark:bg-zinc-800 p-3 rounded-md border dark:border-zinc-700">
+                                <p><span class="font-semibold">Nhân viên note:</span> {{ editingTransaction?.note }}</p>
+                                <p class="mt-1">
+                                    <span class="font-semibold">Hệ thống nhận xét:</span>
+                                    <span :class="{
+                                        'font-bold ml-1': true,
+                                        'text-green-600': editingTransaction?.system_flag === 'valid',
+                                        'text-yellow-600': editingTransaction?.system_flag === 'review',
+                                        'text-red-600': editingTransaction?.system_flag === 'invalid',
+                                    }">{{ systemStatusLabels[editingTransaction.system_flag] || editingTransaction.system_flag || 'N/A' }}</span>
+                                    <span> - {{ editingTransaction?.system_note }}</span>
+                                </p>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-zinc-400">
+                                    Bạn có thể tham khảo để đưa ra nhận định cuối cùng bên dưới 
+                                </p>
+                             </div>
+                        </div>
+                    </div>
 
                     <div class="grid grid-cols-4 items-center gap-4">
                         <Label class="text-right dark:text-zinc-300">Mục chi</Label>
@@ -415,30 +441,8 @@ const statusLabels: Record<string, string> = {
                             </select>
                         </div>
                     </div>
-                    <div class="grid grid-cols-4 items-start gap-4">
-                        <Label class="text-right dark:text-zinc-300 mt-2">Thông tin</Label>
-                        <div class="col-span-3 text-sm text-gray-700 dark:text-zinc-300 space-y-2">
-                             <div class="bg-gray-50 dark:bg-zinc-800 p-3 rounded-md border dark:border-zinc-700">
-                                <p><span class="font-semibold">Note gốc của nhân viên:</span> {{ editingTransaction?.note }}</p>
-                                <p class="mt-1">
-                                    <span class="font-semibold">Hệ thống đưa ra nhận định ban đầu là:</span>
-                                    <span :class="{
-                                        'font-bold ml-1': true,
-                                        'text-green-600': editingTransaction?.system_flag === 'valid',
-                                        'text-yellow-600': editingTransaction?.system_flag === 'review',
-                                        'text-red-600': editingTransaction?.system_flag === 'invalid',
-                                    }">{{ editingTransaction?.system_flag }}</span>
-                                    <span> - {{ editingTransaction?.system_note }}</span>
-                                </p>
-                                <p class="mt-2 text-xs text-gray-500 dark:text-zinc-400 italic">
-                                    Bạn có thể tham khảo để đưa ra nhận định cuối cùng vào cột "flag" và nhớ điền note vào ql_note
-                                </p>
-                             </div>
-                        </div>
-                    </div>
-
                     <div class="grid grid-cols-4 items-center gap-4">
-                         <Label class="text-right dark:text-zinc-300">QL Note</Label>
+                         <Label class="text-right dark:text-zinc-300">Note thêm (nếu cần)</Label>
                          <Input v-model="editForm.ql_note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú của quản lý..." />
                     </div>
                 </div>
