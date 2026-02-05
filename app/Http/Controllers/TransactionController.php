@@ -113,7 +113,7 @@ class TransactionController extends Controller
             'profession_id' => 'nullable|exists:professions,id',
 
             'flag' => 'required|in:valid,review,invalid',
-            'review_status' => 'nullable|string',
+            'ql_note' => 'nullable|string',
         ]);
 
         $transaction->update($validated);

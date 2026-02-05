@@ -125,9 +125,8 @@ const isEditOpen = ref(false);
 const editingTransaction = ref<any>(null);
 const editForm = useForm({
     profession_id: '',
-
     flag: '',
-    review_status: '',
+    ql_note: '',
 });
 
 const openEdit = (transaction: any) => {
@@ -135,14 +134,14 @@ const openEdit = (transaction: any) => {
     editForm.profession_id = transaction.profession_id || '';
 
     editForm.flag = transaction.flag || 'review';
-    editForm.review_status = transaction.review_status || '';
+    editForm.ql_note = transaction.ql_note || '';
     isEditOpen.value = true;
 };
 
 const submitEdit = () => {
     if (!editingTransaction.value) return;
     const url = routeTransactionsUpdate.url({ id: editingTransaction.value.id || editingTransaction.value.cash_id });
-    
+
     editForm.put(url, {
         onSuccess: () => {
             isEditOpen.value = false;
@@ -174,7 +173,7 @@ const statusLabels: Record<string, string> = {
         <div class="py-6 lg:py-12">
             <div class="max-w-9xl mx-auto sm:px-6 lg:px-8">
                 <div class="bg-white dark:bg-zinc-900 overflow-hidden shadow-xl sm:rounded-lg p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 transition-colors duration-200">
-                    
+
                     <!-- Filters -->
                     <form @submit.prevent="submitFilter" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6 items-end">
                         <div>
@@ -254,9 +253,9 @@ const statusLabels: Record<string, string> = {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Cửa hàng</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nội dung</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Số tiền</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục chi (Profession)</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Trạng thái (Flag)</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">System Flag</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục đích chi</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">QL duyệt</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Hệ thống duyệt</th>
                                     <th class="px-6 py-3"></th>
                                 </tr>
                             </thead>
@@ -315,7 +314,7 @@ const statusLabels: Record<string, string> = {
                         <div v-if="transactions.data.length === 0" class="text-center text-gray-500 dark:text-zinc-500 py-8">
                             Không có dữ liệu
                         </div>
-                        <div v-for="tran in transactions.data" :key="tran.id" 
+                        <div v-for="tran in transactions.data" :key="tran.id"
                              class="bg-white dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-lg p-4 space-y-3 shadow-sm transition-all"
                              :class="{'ring-2 ring-indigo-500 bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800': selectedIds.includes(tran.id)}">
                             <div class="flex justify-between items-start">
@@ -335,18 +334,18 @@ const statusLabels: Record<string, string> = {
                                     {{ statusLabels[tran.flag] || tran.flag }}
                                 </span>
                             </div>
-                            
+
                             <div>
                                 <p class="text-sm text-gray-500 dark:text-zinc-500">Cửa hàng</p>
                                 <p class="text-sm font-medium text-gray-900 dark:text-zinc-200">{{ getStoreName(tran.store_uid) }}</p>
                             </div>
-                            
+
                             <div>
                                 <p class="text-sm text-gray-500 dark:text-zinc-500">Nội dung</p>
                                 <p class="text-sm text-gray-700 dark:text-zinc-300 line-clamp-2">
                                     {{ tran.note }}
-                                    <span v-if="tran.review_status" class="font-bold ml-1 text-zinc-600 dark:text-zinc-400">
-                                        ({{ tran.review_status }})
+                                    <span v-if="tran.ql_note" class="font-bold ml-1 text-zinc-600 dark:text-zinc-400">
+                                        ({{ tran.ql_note }})
                                     </span>
                                 </p>
                             </div>
@@ -361,7 +360,7 @@ const statusLabels: Record<string, string> = {
                             </div>
                         </div>
                     </div>
-                    
+
                      <!-- Pagination -->
                     <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4" v-if="transactions.total > 0">
                         <div class="text-sm text-gray-500 dark:text-zinc-400 order-2 sm:order-1">
@@ -376,7 +375,7 @@ const statusLabels: Record<string, string> = {
                                     'bg-indigo-600 text-white border-indigo-600': link.active,
                                     'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-600 dark:hover:bg-zinc-700': !link.active,
                                     'opacity-50 cursor-not-allowed': !link.url
-                                }" 
+                                }"
                              />
                         </div>
                     </div>
@@ -416,9 +415,31 @@ const statusLabels: Record<string, string> = {
                             </select>
                         </div>
                     </div>
+                    <div class="grid grid-cols-4 items-start gap-4">
+                        <Label class="text-right dark:text-zinc-300 mt-2">Thông tin</Label>
+                        <div class="col-span-3 text-sm text-gray-700 dark:text-zinc-300 space-y-2">
+                             <div class="bg-gray-50 dark:bg-zinc-800 p-3 rounded-md border dark:border-zinc-700">
+                                <p><span class="font-semibold">Note gốc của nhân viên:</span> {{ editingTransaction?.note }}</p>
+                                <p class="mt-1">
+                                    <span class="font-semibold">Hệ thống đưa ra nhận định ban đầu là:</span>
+                                    <span :class="{
+                                        'font-bold ml-1': true,
+                                        'text-green-600': editingTransaction?.system_flag === 'valid',
+                                        'text-yellow-600': editingTransaction?.system_flag === 'review',
+                                        'text-red-600': editingTransaction?.system_flag === 'invalid',
+                                    }">{{ editingTransaction?.system_flag }}</span>
+                                    <span> - {{ editingTransaction?.system_note }}</span>
+                                </p>
+                                <p class="mt-2 text-xs text-gray-500 dark:text-zinc-400 italic">
+                                    Bạn có thể tham khảo để đưa ra nhận định cuối cùng vào cột "flag" và nhớ điền note vào ql_note
+                                </p>
+                             </div>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-4 items-center gap-4">
-                         <Label class="text-right dark:text-zinc-300">Ghi chú</Label>
-                         <Input v-model="editForm.review_status" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Lý do..." />
+                         <Label class="text-right dark:text-zinc-300">QL Note</Label>
+                         <Input v-model="editForm.ql_note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú của quản lý..." />
                     </div>
                 </div>
                 <DialogFooter>

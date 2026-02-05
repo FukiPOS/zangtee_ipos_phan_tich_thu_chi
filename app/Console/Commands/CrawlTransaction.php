@@ -167,18 +167,18 @@ class CrawlTransaction extends Command
                         })->first();
 
                         // Nhân viên hay  nhầm số 0 và chữ O nên phải thử
-                        if (!$foundOrder) {
-                            $orderCodeOto0 = str_replace("O", "0", $orderCode);
+                        if (! $foundOrder) {
+                            $orderCodeOto0 = str_replace('O', '0', $orderCode);
                             $foundOrder = $allOrders->filter(function ($o) use ($orderCodeOto0, $startDate, $endDate) {
                                 return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCodeOto0) !== false || stripos($o->source_fb_id, $orderCodeOto0) !== false);
-                            })->first(); 
+                            })->first();
                         }
 
-                        if (!$foundOrder) {
-                            $orderCode0toO = str_replace("0", "O", $orderCode);
+                        if (! $foundOrder) {
+                            $orderCode0toO = str_replace('0', 'O', $orderCode);
                             $foundOrder = $allOrders->filter(function ($o) use ($orderCode0toO, $startDate, $endDate) {
                                 return $o->start_date >= $startDate && $o->start_date <= $endDate && (stripos($o->tran_id, $orderCode0toO) !== false || stripos($o->source_fb_id, $orderCode0toO) !== false);
-                            })->first(); 
+                            })->first();
                         }
                     }
 
@@ -186,14 +186,20 @@ class CrawlTransaction extends Command
 
                     // Logic 2: Validation Flag
                     $flag = 'review';
+                    $systemNote = null;
+
                     if ($professionName === 'Chi phí vận chuyển') {
                         if (! $orderCode) {
                             $flag = 'review';
+                            $systemNote = 'Không tìm thấy mã đơn hàng trong nội dung chuyển khoản';
                         } else {
                             if ($foundOrder) {
-                                $flag = $this->isValidPaymentForOrder($foundOrder, $distance) ? 'valid' : 'invalid';
+                                $validationResult = $this->isValidPaymentForOrder($foundOrder, $distance);
+                                $flag = $validationResult['flag'];
+                                $systemNote = $validationResult['note'];
                             } else {
                                 $flag = 'invalid';
+                                $systemNote = "Không tìm thấy đơn hàng $orderCode trong khoảng thời gian này";
                             }
                         }
                     } else {
@@ -210,6 +216,7 @@ class CrawlTransaction extends Command
                                     $tid = substr($o->tran_id, -5);
                                     if ($tid && stripos($note, $tid) !== false) {
                                         $flag = 'valid';
+                                        $systemNote = "Khớp mã giao dịch $tid trong nội dung";
                                         break;
                                     }
                                 }
@@ -223,44 +230,48 @@ class CrawlTransaction extends Command
                         $deletedAt = now();
                     }
 
-                    Transaction::withTrashed()->updateOrCreate(
-                        ['cash_id' => $transaction['cash_id']],
-                        [
+                    $transactionData = [
+                        'amount' => $transaction['amount'] ?? null,
+                        'brand_uid' => $transaction['brand_uid'] ?? null,
+                        'company_uid' => $transaction['company_uid'] ?? null,
+                        'created_at' => $transaction['created_at'] ?? null,
+                        'created_by' => $transaction['created_by'] ?? null,
+                        'deleted' => $transaction['deleted'] ?? false,
+                        'deleted_at' => $deletedAt,
+                        'deleted_by' => $transaction['deleted_by'] ?? null,
+                        'employee_email' => $transaction['employee_email'] ?? null,
+                        'employee_name' => $transaction['employee_name'] ?? null,
+                        'payment_method_id' => $transaction['payment_method_id'] ?? null,
+                        'payment_method_name' => $transaction['payment_method_name'] ?? null,
+                        'shift_id' => $transaction['shift_id'] ?? null,
+                        'shift_name' => $transaction['shift_name'] ?? null,
+                        'store_uid' => $transaction['store_uid'] ?? null,
+                        'time' => $transaction['time'] ?? null,
+                        'type' => $type,
+                        'updated_at' => $transaction['updated_at'] ?? null,
+                        'updated_by' => $transaction['updated_by'] ?? null,
+                        'system_flag' => $flag,
+                        'system_note' => $systemNote,
+                        'note' => $transaction['note'] ?? null,
 
-                            'amount' => $transaction['amount'] ?? null,
-                            'brand_uid' => $transaction['brand_uid'] ?? null,
-                            'company_uid' => $transaction['company_uid'] ?? null,
-                            'created_at' => $transaction['created_at'] ?? null,
-                            'created_by' => $transaction['created_by'] ?? null,
-                            'deleted' => $transaction['deleted'] ?? false,
-                            'deleted_at' => $deletedAt,
-                            'deleted_by' => $transaction['deleted_by'] ?? null,
-                            'employee_email' => $transaction['employee_email'] ?? null,
-                            'employee_name' => $transaction['employee_name'] ?? null,
-                            'note' => $transaction['note'] ?? null,
-                            'payment_method_id' => $transaction['payment_method_id'] ?? null,
-                            'payment_method_name' => $transaction['payment_method_name'] ?? null,
+                        // Added order details
+                        'order_payment_method_id' => $foundOrder ? $foundOrder->payment_method_id : null,
+                        'order_payment_amount' => $foundOrder ? $foundOrder->payment_amout : null,
+                        'order_payment_method_name' => $foundOrder ? ($foundOrder->payment_method_name ?? null) : null,
+                        'order_distance' => $distance,
+                    ];
 
-                            // New field
-                            'profession_id' => $profession ? $profession->id : null,
+                    $existingTransaction = Transaction::withTrashed()->where('cash_id', $transaction['cash_id'])->first();
 
-                            'shift_id' => $transaction['shift_id'] ?? null,
-                            'shift_name' => $transaction['shift_name'] ?? null,
-                            'store_uid' => $transaction['store_uid'] ?? null,
-                            'time' => $transaction['time'] ?? null,
-                            'type' => $type,
-                            'updated_at' => $transaction['updated_at'] ?? null,
-                            'updated_by' => $transaction['updated_by'] ?? null,
-                            'flag' => $flag,
-                            'system_flag' => $flag,
+                    if ($existingTransaction) {
+                        $existingTransaction->update($transactionData);
+                    } else {
+                        $transactionData['cash_id'] = $transaction['cash_id'];
+                        $transactionData['profession_id'] = $profession ? $profession->id : null;
+                        $transactionData['flag'] = $flag;
 
-                            // Added order details
-                            'order_payment_method_id' => $foundOrder ? $foundOrder->payment_method_id : null,
-                            'order_payment_amount' => $foundOrder ? $foundOrder->payment_amout : null,
-                            'order_payment_method_name' => $foundOrder ? ($foundOrder->payment_method_name ?? null) : null,
-                            'order_distance' => $distance,
-                        ]
-                    );
+                        Transaction::create($transactionData);
+                    }
                 }
             } catch (\Exception $e) {
                 $this->error("Failed to crawl store {$storeName}: {$e->getMessage()}");
@@ -270,7 +281,7 @@ class CrawlTransaction extends Command
 
     public function extractOrderCode(string $note): ?string
     {
-        $match = "";
+        $match = '';
         if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
             $match = $matches[0];
         }
@@ -287,6 +298,7 @@ class CrawlTransaction extends Command
         if (strlen($match) > 0) {
             echo $match;
             echo "\n";
+
             return $match;
         }
 
@@ -296,23 +308,30 @@ class CrawlTransaction extends Command
     public function isValidPaymentForOrder($order, $distance)
     {
         if (! $order) {
-            return false;
+            return ['flag' => 'invalid', 'note' => 'Không tìm thấy đơn hàng'];
         }
 
-        $orderTranId = $order->tran_id;
         $orderPaymentAmount = $order->payment_amout;
         $orderPaymentMethodId = $order->payment_method_id;
-        $orderPaymentMethodName = $order->payment_method_name;
 
         if ($distance <= 3 && $orderPaymentAmount > 199000) {
-            return true;
+            return [
+                'flag' => 'valid',
+                'note' => "Thỏa mãn: Khoảng cách {$distance}km <= 3km và Bill ".number_format($orderPaymentAmount)." > 199k",
+            ];
         }
 
         if ($orderPaymentMethodId == 'MOMO_QR_AIO') {
-            return true;
+            return [
+                'flag' => 'valid',
+                'note' => 'Thanh toán qua MOMO (MOMO_QR_AIO)',
+            ];
         }
 
-        return false;
+        return [
+            'flag' => 'invalid',
+            'note' => "Không thỏa mãn điều kiện (Khoảng cách: {$distance}km, Bill: ".number_format($orderPaymentAmount).', Method: '.$orderPaymentMethodId.')',
+        ];
     }
 
     public function extractDistanceKm(string $note): ?float
