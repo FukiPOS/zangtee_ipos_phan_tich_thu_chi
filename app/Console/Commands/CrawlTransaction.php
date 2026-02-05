@@ -34,7 +34,10 @@ class CrawlTransaction extends Command
     public function handle()
     {
         $fabiService = new FabiService;
-        $data = $fabiService->login(env('IPOS_USERNAME'), env('IPOS_PASSWORD'));
+        $data = $fabiService->login(
+            config('services.ipos.username'),
+            config('services.ipos.password')
+        );
 
         if (! isset($data['data']['token'])) {
             $this->error('Login failed');
