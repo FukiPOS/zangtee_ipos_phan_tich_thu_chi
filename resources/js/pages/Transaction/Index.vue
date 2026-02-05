@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { index as routeTransactionsIndex, update as routeTransactionsUpdate, bulkUpdate as routeTransactionsBulkUpdate } from '@/routes/transactions';
+import { User, AlertCircle } from 'lucide-vue-next';
 
 const props = defineProps<{
     transactions: {
@@ -279,8 +280,13 @@ const systemStatusLabels: Record<string, string> = {
                                                 ({{ tran.review_status }})
                                             </span>
                                         </div>
-                                        <div v-if="tran.ql_note" class="text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                        <div v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                            <User class="w-3 h-3" />
                                             {{ tran.ql_note }}
+                                        </div>
+                                        <div v-if="tran.system_flag === 'invalid' && tran.system_note" class="flex items-center gap-1 text-xs text-red-600 dark:text-red-500 mt-1 font-medium">
+                                            <AlertCircle class="w-3 h-3" />
+                                            {{ tran.system_note }}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-zinc-100">{{ formatCurrency(tran.amount) }}</td>
@@ -356,8 +362,13 @@ const systemStatusLabels: Record<string, string> = {
                                 <p class="text-sm text-gray-700 dark:text-zinc-300 line-clamp-2">
                                     {{ tran.note }}
                                 </p>
-                                <p v-if="tran.ql_note" class="text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                <p v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                    <User class="w-3 h-3" />
                                     {{ tran.ql_note }}
+                                </p>
+                                <p v-if="tran.system_flag === 'invalid' && tran.system_note" class="flex items-center gap-1 text-xs text-red-600 dark:text-red-500 mt-1 font-medium">
+                                    <AlertCircle class="w-3 h-3" />
+                                    {{ tran.system_note }}
                                 </p>
                             </div>
 
