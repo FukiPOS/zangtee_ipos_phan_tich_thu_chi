@@ -276,17 +276,14 @@ const systemStatusLabels: Record<string, string> = {
                                     <td class="px-6 py-4 text-gray-900 dark:text-zinc-300 max-w-xs" :title="tran.note">
                                         <div>
                                             {{ tran.note }}
-                                            <span v-if="tran.review_status" class="font-bold ml-1 text-zinc-600 dark:text-zinc-400">
-                                                ({{ tran.review_status }})
-                                            </span>
-                                        </div>
-                                        <div v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
-                                            <User class="w-3 h-3" />
-                                            {{ tran.ql_note }}
                                         </div>
                                         <div v-if="tran.system_flag === 'invalid' && tran.system_note" class="flex items-center gap-1 text-xs text-red-600 dark:text-red-500 mt-1 font-medium">
                                             <AlertCircle class="w-3 h-3" />
                                             {{ tran.system_note }}
+                                        </div>
+                                        <div v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                            <User class="w-3 h-3" />
+                                            {{ tran.ql_note }}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-zinc-100">{{ formatCurrency(tran.amount) }}</td>
@@ -362,13 +359,13 @@ const systemStatusLabels: Record<string, string> = {
                                 <p class="text-sm text-gray-700 dark:text-zinc-300 line-clamp-2">
                                     {{ tran.note }}
                                 </p>
-                                <p v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
-                                    <User class="w-3 h-3" />
-                                    {{ tran.ql_note }}
-                                </p>
                                 <p v-if="tran.system_flag === 'invalid' && tran.system_note" class="flex items-center gap-1 text-xs text-red-600 dark:text-red-500 mt-1 font-medium">
                                     <AlertCircle class="w-3 h-3" />
                                     {{ tran.system_note }}
+                                </p>
+                                <p v-if="tran.ql_note" class="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-500 mt-1 font-medium">
+                                    <User class="w-3 h-3" />
+                                    {{ tran.ql_note }}
                                 </p>
                             </div>
 
