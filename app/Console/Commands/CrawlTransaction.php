@@ -289,6 +289,7 @@ class CrawlTransaction extends Command
 
     public function extractOrderCode(string $note): ?string
     {
+        $note = mb_strtoupper($note);
         $match = '';
         if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
             $match = $matches[0];
