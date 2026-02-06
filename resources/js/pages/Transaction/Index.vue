@@ -29,6 +29,12 @@ const props = defineProps<{
     stores: Array<any>;
 
     professions: Array<{ id: number; label: string }>;
+    stats: {
+        total: number;
+        valid_count: number;
+        review_count: number;
+        invalid_count: number;
+    };
     filters: {
         store_uid: string;
         from_date: string;
@@ -235,6 +241,26 @@ const systemStatusLabels: Record<string, string> = {
                             <Button type="submit" class="w-full md:w-auto h-10">Tìm kiếm</Button>
                         </div>
                     </form>
+
+                    <!-- Stats Widget -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-gray-200 dark:border-zinc-800 flex flex-col">
+                            <span class="text-xs font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Tổng cộng</span>
+                            <span class="text-2xl font-bold text-gray-900 dark:text-zinc-100">{{ stats.total }}</span>
+                        </div>
+                        <div class="bg-green-50/50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex flex-col">
+                            <span class="text-xs font-medium text-green-600 dark:text-green-500 uppercase tracking-wider mb-1">Đồng ý (Valid)</span>
+                            <span class="text-2xl font-bold text-green-700 dark:text-green-400">{{ stats.valid_count }}</span>
+                        </div>
+                        <div class="bg-yellow-50/50 dark:bg-yellow-900/10 p-4 rounded-xl border border-yellow-100 dark:border-yellow-900/30 flex flex-col">
+                            <span class="text-xs font-medium text-yellow-600 dark:text-yellow-500 uppercase tracking-wider mb-1">Chờ duyệt (Review)</span>
+                            <span class="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{{ stats.review_count }}</span>
+                        </div>
+                        <div class="bg-red-50/50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col">
+                            <span class="text-xs font-medium text-red-600 dark:text-red-500 uppercase tracking-wider mb-1">Từ chối (Invalid)</span>
+                            <span class="text-2xl font-bold text-red-700 dark:text-red-400">{{ stats.invalid_count }}</span>
+                        </div>
+                    </div>
 
                     <!-- Bulk Actions Toolbar -->
                     <div v-if="selectedIds.length > 0" class="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">

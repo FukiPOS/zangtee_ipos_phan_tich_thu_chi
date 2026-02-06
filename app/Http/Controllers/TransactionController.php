@@ -64,8 +64,19 @@ class TransactionController extends Controller
             ->paginate($request->input('per_page', 20))
             ->withQueryString();
 
+        // Stats for the widget
+        $stats = (clone $query)->selectRaw("
+            count(*) as total,
+            sum(case when flag = 'valid' then 1 else 0 end) as valid_count,
+            sum(case when flag = 'review' then 1 else 0 end) as review_count,
+            sum(case when flag = 'invalid' then 1 else 0 end) as invalid_count
+        ")->first();
+
         if ($request->wantsJson()) {
-            return response()->json($transactions);
+            return response()->json([
+                'transactions' => $transactions,
+                'stats' => $stats
+            ]);
         }
 
         // Get stats for professions dropdown
@@ -91,7 +102,7 @@ class TransactionController extends Controller
         return Inertia::render('Transaction/Index', [
             'transactions' => $transactions,
             'stores' => Store::where('active', 1)->get(),
-
+            'stats' => $stats,
             'professions' => $professionStats,
             'filters' => [
                 'from_date' => $fromDate ?: $defaultStartDate->format('Y-m-d'),

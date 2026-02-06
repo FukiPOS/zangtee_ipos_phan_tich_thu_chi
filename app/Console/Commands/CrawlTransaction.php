@@ -139,11 +139,11 @@ class CrawlTransaction extends Command
                         $professionName = 'Chi mua đá viên';
                         $professionUid = null;
                     }
-                    
+
                     $profession = null;
 
                     $profession = $allProfessions->where('name', $professionName)->first();
-                    
+
                     if (! $profession) {
                         // Create new
                         $isLocal = empty($professionUid);
@@ -202,13 +202,11 @@ class CrawlTransaction extends Command
                                 $systemNote = "Không tìm thấy đơn hàng $orderCode trong khoảng thời gian này";
                             }
                         }
-                    } 
-                    else if ($professionName == 'Chi mua đá viên') {
+                    } elseif ($professionName == 'Chi mua đá viên') {
                         $validationResult = $this->isValidPaymentForIce($transaction['note'], $transaction['amount']);
                         $flag = $validationResult['flag'];
                         $systemNote = $validationResult['note'];
-                    }
-                    else {
+                    } else {
                         // Nếu trót chọn nhầm mục khác (ko phải chi phí vận chuyển) nhưng có tìm thấy mã đơn trong nội dung thì vẫn nhét cho nó vào chi phí vận chuyển
                         $tranTime = $transaction['time']; // Timestamp ms
                         if ($tranTime) {
@@ -224,7 +222,7 @@ class CrawlTransaction extends Command
                                     if ($tid && stripos($note, $tid) !== false) {
                                         $flag = 'valid';
                                         $systemNote = "Khớp mã giao dịch $tid trong nội dung";
-                                        $profession = $allProfessions->where('name', "Chi phí vận chuyển")->first();
+                                        $profession = $allProfessions->where('name', 'Chi phí vận chuyển')->first();
                                         break;
                                     }
                                 }
@@ -289,26 +287,42 @@ class CrawlTransaction extends Command
 
     public function extractOrderCode(string $note): ?string
     {
-        $note = mb_strtoupper($note);
-        $match = '';
-        if (preg_match('/\b[A-Z0-9_]{5,}\b/', $note, $matches)) {
-            $match = $matches[0];
+        $extract = function ($text) {
+            // 1. Ưu tiên tìm dấu # và lấy đúng 5 kí tự đằng sau dấu #
+            if (preg_match('/#([A-Z0-9_]{5})/i', $text, $matches)) {
+                return mb_strtoupper($matches[1]);
+            }
+
+            // 2. Logic cũ: Tìm chuỗi alphanumeric/underscore >= 5 ký tự
+            if (preg_match('/\b[A-Z0-9_]{5,}\b/', $text, $matches)) {
+                $match = $matches[0];
+
+                // Nếu độ dài >= 5 và có chứa "_" thì chỉ lấy 5 ký tự đầu
+                if (strlen($match) >= 5 && strpos($match, '_') !== false) {
+                    $match = substr($match, 0, 5);
+                }
+
+                return mb_strtoupper($match);
+            }
+
+            return null;
+        };
+
+        // Lần 1: Thử với note gốc
+        $result = $extract($note);
+
+        // Lần 2: Nếu không thấy, thử lại với mb_strtoupper
+        if (! $result) {
+            $upperNote = mb_strtoupper($note);
+            if ($upperNote !== $note) {
+                $result = $extract($upperNote);
+            }
         }
 
-        if (strlen($match) > 0) {
-            $match = str_replace('#', '', $match);
-        }
+        if ($result) {
+            echo $result."\n";
 
-        // Nếu độ dài >= 5 và có chứa "_" thì chỉ lấy 5 ký tự đầu
-        if (strlen($match) >= 5 && strpos($match, '_') !== false) {
-            $match = substr($match, 0, 5);
-        }
-
-        if (strlen($match) > 0) {
-            echo $match;
-            echo "\n";
-
-            return $match;
+            return $result;
         }
 
         return null;
@@ -330,7 +344,7 @@ class CrawlTransaction extends Command
 
         foreach ($map as $word => $number) {
             // replace dạng nguyên từ (tránh dính chữ khác)
-            $text = preg_replace('/\b' . $word . '\b/u', $number, $text);
+            $text = preg_replace('/\b'.$word.'\b/u', $number, $text);
         }
 
         return $text;
@@ -343,7 +357,7 @@ class CrawlTransaction extends Command
         // 1) Regex lấy số đầu tiên trong chuỗi $note, nếu không có thì = 0
         $numberOfPacket = 0;
         if (preg_match('/\d+/', $note, $matches)) {
-            $numberOfPacket = (int)$matches[0];
+            $numberOfPacket = (int) $matches[0];
         }
 
         // 2) Tính giá tiền
@@ -353,7 +367,7 @@ class CrawlTransaction extends Command
         if ($numberOfPacket <= 0) {
             return [
                 'flag' => 'invalid',
-                'note' => 'Không tìm thấy số lượng đá trong nội dung'
+                'note' => 'Không tìm thấy số lượng đá trong nội dung',
             ];
         }
 
@@ -364,14 +378,14 @@ class CrawlTransaction extends Command
         if ($percentDiff <= 10) {
             return [
                 'flag' => 'valid',
-                'note' => "Hợp lệ: {$numberOfPacket} gói đá, giá chuẩn {$price}, thực chi {$amount}"
+                'note' => "Hợp lệ: {$numberOfPacket} gói đá, giá chuẩn {$price}, thực chi {$amount}",
             ];
         }
 
         // 4) Không hợp lệ
         return [
             'flag' => 'invalid',
-            'note' => "Sai lệch > 10%: giá chuẩn cho {$numberOfPacket} là {$price}, thực chi {$amount}"
+            'note' => "Sai lệch > 10%: giá chuẩn cho {$numberOfPacket} là {$price}, thực chi {$amount}",
         ];
     }
 
@@ -387,7 +401,7 @@ class CrawlTransaction extends Command
         if ($distance <= 3 && $orderPaymentAmount > 199000) {
             return [
                 'flag' => 'valid',
-                'note' => "Thỏa mãn: Khoảng cách {$distance}km <= 3km và Bill ".number_format($orderPaymentAmount)." > 199k",
+                'note' => "Thỏa mãn: Khoảng cách {$distance}km <= 3km và Bill ".number_format($orderPaymentAmount).' > 199k',
             ];
         }
 
