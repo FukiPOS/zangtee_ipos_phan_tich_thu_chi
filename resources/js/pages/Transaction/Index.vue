@@ -188,7 +188,7 @@ const systemStatusLabels: Record<string, string> = {
                 <div class="bg-white dark:bg-zinc-900 overflow-hidden shadow-xl sm:rounded-lg p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 transition-colors duration-200">
 
                     <!-- Filters -->
-                    <form @submit.prevent="submitFilter" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6 items-end">
+                    <form @submit.prevent="submitFilter" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-6 items-end">
                         <div>
                             <Label class="block mb-2 font-medium dark:text-zinc-300">Cửa hàng</Label>
                             <select v-model="form.store_uid" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
