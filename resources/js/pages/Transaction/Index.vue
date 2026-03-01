@@ -13,8 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { index as routeTransactionsIndex, update as routeTransactionsUpdate, bulkUpdate as routeTransactionsBulkUpdate } from '@/routes/transactions';
-import { User, AlertCircle } from 'lucide-vue-next';
+import {
+    index as routeTransactionsIndex,
+    update as routeTransactionsUpdate,
+    store as routeTransactionsStore,
+    destroy as routeTransactionsDestroy,
+    bulkUpdate as routeTransactionsBulkUpdate,
+} from '@/routes/transactions';
+import { User, AlertCircle, Plus, Trash2 } from 'lucide-vue-next';
 
 const props = defineProps<{
     transactions: {
@@ -27,8 +33,8 @@ const props = defineProps<{
         total: number;
     };
     stores: Array<any>;
-
     professions: Array<{ id: number; label: string }>;
+    allProfessions: Array<{ id: number; name: string }>;
     stats: {
         total: number;
         valid_count: number;
@@ -93,7 +99,6 @@ const toggleSelectAll = (checked: boolean) => {
     if (checked) {
         selectedIds.value = [...new Set([...selectedIds.value, ...props.transactions.data.map(t => t.id)])];
     } else {
-        // Deselect current page items
         const pageIds = props.transactions.data.map(t => t.id);
         selectedIds.value = selectedIds.value.filter(id => !pageIds.includes(id));
     }
@@ -121,43 +126,110 @@ const submitBulkUpdate = (flag: string) => {
 
     bulkForm.post(routeTransactionsBulkUpdate.url(), {
         onSuccess: () => {
-             selectedIds.value = []; // Clear selection
+             selectedIds.value = [];
              bulkForm.reset();
         }
     });
 };
 
-// Edit Dialog Logic
+// --- Create Dialog ---
+const isCreateOpen = ref(false);
+const createForm = useForm({
+    store_uid: '',
+    amount: '',
+    type: 'OUT' as 'IN' | 'OUT',
+    note: '',
+    profession_id: '',
+    flag: 'valid',
+});
+
+const openCreate = () => {
+    createForm.reset();
+    createForm.store_uid = form.value.store_uid || '';
+    isCreateOpen.value = true;
+};
+
+const submitCreate = () => {
+    createForm.post(routeTransactionsStore.url(), {
+        onSuccess: () => {
+            isCreateOpen.value = false;
+            createForm.reset();
+        },
+    });
+};
+
+// --- Edit Dialog ---
 const isEditOpen = ref(false);
 const editingTransaction = ref<any>(null);
-const editForm = useForm({
+
+// Crawl edit form
+const editFormCrawl = useForm({
     profession_id: '',
     flag: '',
     ql_note: '',
 });
 
+// Hand edit form
+const editFormHand = useForm({
+    store_uid: '',
+    amount: '',
+    type: 'OUT' as 'IN' | 'OUT',
+    note: '',
+    profession_id: '',
+    flag: '',
+    ql_note: '',
+});
+
+const isEditingHand = computed(() => editingTransaction.value?.source === 'hand');
+
 const openEdit = (transaction: any) => {
     editingTransaction.value = transaction;
-    editForm.profession_id = transaction.profession_id || '';
 
-    editForm.flag = transaction.flag || 'review';
-    editForm.ql_note = transaction.ql_note || '';
+    if (transaction.source === 'hand') {
+        editFormHand.store_uid = transaction.store_uid || '';
+        editFormHand.amount = transaction.amount || '';
+        editFormHand.type = transaction.type || 'OUT';
+        editFormHand.note = transaction.note || '';
+        editFormHand.profession_id = transaction.profession_id || '';
+        editFormHand.flag = transaction.flag || 'review';
+        editFormHand.ql_note = transaction.ql_note || '';
+    } else {
+        editFormCrawl.profession_id = transaction.profession_id || '';
+        editFormCrawl.flag = transaction.flag || 'review';
+        editFormCrawl.ql_note = transaction.ql_note || '';
+    }
+
     isEditOpen.value = true;
 };
 
 const submitEdit = () => {
     if (!editingTransaction.value) return;
-    const url = routeTransactionsUpdate.url({ id: editingTransaction.value.id || editingTransaction.value.cash_id });
+    const url = routeTransactionsUpdate.url({ id: editingTransaction.value.id });
 
-    editForm.put(url, {
-        onSuccess: () => {
-            isEditOpen.value = false;
-            editingTransaction.value = null;
-        }
-    });
+    if (isEditingHand.value) {
+        editFormHand.put(url, {
+            onSuccess: () => {
+                isEditOpen.value = false;
+                editingTransaction.value = null;
+            }
+        });
+    } else {
+        editFormCrawl.put(url, {
+            onSuccess: () => {
+                isEditOpen.value = false;
+                editingTransaction.value = null;
+            }
+        });
+    }
 };
 
+// --- Delete ---
+const deleteTransaction = (transaction: any) => {
+    if (transaction.source !== 'hand') return;
+    if (!confirm('Bạn có chắc chắn muốn xóa khoản thu/chi này?')) return;
 
+    router.delete(routeTransactionsDestroy.url({ id: transaction.id }));
+};
 
 const statusLabels: Record<string, string> = {
     valid: 'Đồng ý',
@@ -171,20 +243,30 @@ const systemStatusLabels: Record<string, string> = {
     invalid: 'Bất thường'
 };
 
+const selectedStoreCash = computed(() => {
+    if (!form.value.store_uid) return null;
+    const store = props.stores.find(s => s.ipos_id === form.value.store_uid);
+    return store ? store.cash : null;
+});
 </script>
 
 <template>
     <Head title="Quản lý Thu Chi" />
 
     <AppLayout>
-        <template #header>
-            <h2 class="font-bold text-xl text-zinc-800 dark:text-zinc-100 leading-tight">
-                Quản lý Thu Chi
-            </h2>
-        </template>
-
         <div class="py-6 lg:py-12">
             <div class="max-w-9xl mx-auto sm:px-6 lg:px-8">
+                <!-- Page Header -->
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-bold text-xl text-zinc-800 dark:text-zinc-100 leading-tight">
+                        Quản lý Thu Chi
+                    </h2>
+                    <Button @click="openCreate" class="gap-2">
+                        <Plus class="w-4 h-4" />
+                        Thêm khoản thu/chi
+                    </Button>
+                </div>
+
                 <div class="bg-white dark:bg-zinc-900 overflow-hidden shadow-xl sm:rounded-lg p-4 sm:p-6 border border-zinc-200 dark:border-zinc-800 transition-colors duration-200">
 
                     <!-- Filters -->
@@ -199,7 +281,7 @@ const systemStatusLabels: Record<string, string> = {
                             </select>
                         </div>
                         <div>
-                            <Label class="block mb-2 font-medium dark:text-zinc-300">Mục chi</Label>
+                            <Label class="block mb-2 font-medium dark:text-zinc-300">Mục thu/chi</Label>
                             <select v-model="form.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 border p-2">
                                 <option value="">Tất cả</option>
                                 <option v-for="prof in professions" :key="prof.id" :value="prof.id">
@@ -243,7 +325,7 @@ const systemStatusLabels: Record<string, string> = {
                     </form>
 
                     <!-- Stats Widget -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" :class="{ 'md:grid-cols-5': selectedStoreCash !== null }">
                         <div class="bg-gray-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-gray-200 dark:border-zinc-800 flex flex-col">
                             <span class="text-xs font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Tổng cộng</span>
                             <span class="text-2xl font-bold text-gray-900 dark:text-zinc-100">{{ stats.total }}</span>
@@ -259,6 +341,10 @@ const systemStatusLabels: Record<string, string> = {
                         <div class="bg-red-50/50 dark:bg-red-900/10 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex flex-col">
                             <span class="text-xs font-medium text-red-600 dark:text-red-500 uppercase tracking-wider mb-1">Từ chối (Invalid)</span>
                             <span class="text-2xl font-bold text-red-700 dark:text-red-400">{{ stats.invalid_count }}</span>
+                        </div>
+                        <div v-if="selectedStoreCash !== null" class="bg-emerald-50/50 dark:bg-emerald-900/10 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex flex-col">
+                            <span class="text-xs font-medium text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mb-1">Tiền quỹ</span>
+                            <span class="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{{ formatCurrency(selectedStoreCash) }}</span>
                         </div>
                     </div>
 
@@ -286,9 +372,10 @@ const systemStatusLabels: Record<string, string> = {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Cửa hàng</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nội dung</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Số tiền</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục đích chi</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Mục thu/chi</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">QL duyệt</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Hệ thống</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-zinc-400 uppercase tracking-wider">Nguồn</th>
                                     <th class="px-6 py-3"></th>
                                 </tr>
                             </thead>
@@ -312,7 +399,9 @@ const systemStatusLabels: Record<string, string> = {
                                             {{ tran.ql_note }}
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap font-bold text-gray-900 dark:text-zinc-100">{{ formatCurrency(tran.amount) }}</td>
+                                    <td class="px-6 py-4 whitespace-nowrap font-bold" :class="tran.type === 'IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-zinc-100'">
+                                        {{ tran.type === 'IN' ? '+' : '-' }}{{ formatCurrency(tran.amount) }}
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                                             {{ tran.profession ? tran.profession.name : 'N/A' }}
@@ -338,12 +427,26 @@ const systemStatusLabels: Record<string, string> = {
                                             {{ systemStatusLabels[tran.system_flag] || tran.system_flag || 'N/A' }}
                                         </span>
                                     </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span :class="{
+                                            'px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full': true,
+                                            'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300': tran.source === 'hand',
+                                            'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400': tran.source !== 'hand',
+                                        }">
+                                            {{ tran.source === 'hand' ? 'Tạo tay' : 'Crawl' }}
+                                        </span>
+                                    </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <button @click="openEdit(tran)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Sửa</button>
+                                        <div class="flex items-center gap-2 justify-end">
+                                            <button @click="openEdit(tran)" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300">Sửa</button>
+                                            <button v-if="tran.source === 'hand'" @click="deleteTransaction(tran)" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                                                <Trash2 class="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 <tr v-if="transactions.data.length === 0">
-                                    <td colspan="8" class="px-6 py-4 text-center text-gray-500 dark:text-zinc-500">Không có dữ liệu</td>
+                                    <td colspan="10" class="px-6 py-4 text-center text-gray-500 dark:text-zinc-500">Không có dữ liệu</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -362,17 +465,28 @@ const systemStatusLabels: Record<string, string> = {
                                     <input type="checkbox" :checked="selectedIds.includes(tran.id)" @change="toggleSelection(tran.id)" class="mt-1 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 dark:bg-zinc-800 dark:border-zinc-700">
                                     <div>
                                         <p class="text-xs text-gray-500 dark:text-zinc-400">{{ formatDate(tran.time) }}</p>
-                                        <h3 class="font-semibold text-gray-900 dark:text-zinc-100 mt-1">{{ formatCurrency(tran.amount) }}</h3>
+                                        <h3 class="font-semibold mt-1" :class="tran.type === 'IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-zinc-100'">
+                                            {{ tran.type === 'IN' ? '+' : '-' }}{{ formatCurrency(tran.amount) }}
+                                        </h3>
                                     </div>
                                 </div>
-                                <span :class="{
-                                    'px-2 py-1 text-xs font-semibold rounded-full': true,
-                                    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': tran.flag === 'valid',
-                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': tran.flag === 'review',
-                                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': tran.flag === 'invalid',
-                                }">
-                                    {{ statusLabels[tran.flag] || tran.flag }}
-                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span :class="{
+                                        'px-2 py-1 text-xs font-semibold rounded-full': true,
+                                        'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300': tran.source === 'hand',
+                                        'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400': tran.source !== 'hand',
+                                    }">
+                                        {{ tran.source === 'hand' ? 'Tạo tay' : 'Crawl' }}
+                                    </span>
+                                    <span :class="{
+                                        'px-2 py-1 text-xs font-semibold rounded-full': true,
+                                        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300': tran.flag === 'valid',
+                                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300': tran.flag === 'review',
+                                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300': tran.flag === 'invalid',
+                                    }">
+                                        {{ statusLabels[tran.flag] || tran.flag }}
+                                    </span>
+                                </div>
                             </div>
 
                             <div>
@@ -399,9 +513,14 @@ const systemStatusLabels: Record<string, string> = {
                                 <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
                                     {{ tran.profession ? tran.profession.name : 'Chưa phân loại' }}
                                 </span>
-                                <button @click="openEdit(tran)" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                                    Chỉnh sửa
-                                </button>
+                                <div class="flex items-center gap-3">
+                                    <button @click="openEdit(tran)" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
+                                        Chỉnh sửa
+                                    </button>
+                                    <button v-if="tran.source === 'hand'" @click="deleteTransaction(tran)" class="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                                        Xóa
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -428,16 +547,149 @@ const systemStatusLabels: Record<string, string> = {
             </div>
         </div>
 
-        <!-- Edit Modal -->
-        <Dialog :open="isEditOpen" @update:open="isEditOpen = false">
-            <DialogContent class="sm:max-w-[425px] dark:bg-zinc-900 dark:border-zinc-800">
+        <!-- Create Dialog -->
+        <Dialog :open="isCreateOpen" @update:open="isCreateOpen = false">
+            <DialogContent class="sm:max-w-[500px] dark:bg-zinc-900 dark:border-zinc-800">
                 <DialogHeader>
-                    <DialogTitle class="dark:text-zinc-100">Cập nhật giao dịch</DialogTitle>
+                    <DialogTitle class="dark:text-zinc-100">Thêm khoản thu/chi</DialogTitle>
                     <DialogDescription class="dark:text-zinc-400">
-                        Chỉnh sửa thông tin mục đích chi và trạng thái.
+                        Tạo khoản thu hoặc chi mới (tạo tay).
                     </DialogDescription>
                 </DialogHeader>
                 <div class="grid gap-4 py-4">
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Cửa hàng *</Label>
+                        <div class="col-span-3">
+                            <select v-model="createForm.store_uid" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="">-- Chọn cửa hàng --</option>
+                                <option v-for="store in stores" :key="store.id" :value="store.ipos_id">
+                                    {{ store.short_name || store.name }}
+                                </option>
+                            </select>
+                            <p v-if="createForm.errors.store_uid" class="text-red-500 text-xs mt-1">{{ createForm.errors.store_uid }}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Loại *</Label>
+                        <div class="col-span-3">
+                            <select v-model="createForm.type" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="OUT">Chi (OUT)</option>
+                                <option value="IN">Thu (IN)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Số tiền *</Label>
+                        <div class="col-span-3">
+                            <Input v-model="createForm.amount" type="number" min="0" placeholder="VD: 50000" class="dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" />
+                            <p v-if="createForm.errors.amount" class="text-red-500 text-xs mt-1">{{ createForm.errors.amount }}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Nội dung</Label>
+                        <Input v-model="createForm.note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú..." />
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Mục thu/chi</Label>
+                        <div class="col-span-3">
+                            <select v-model="createForm.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="">-- Chọn mục thu/chi --</option>
+                                <option v-for="prof in allProfessions" :key="prof.id" :value="prof.id">
+                                    {{ prof.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Trạng thái *</Label>
+                        <div class="col-span-3">
+                            <select v-model="createForm.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="valid">Đồng ý</option>
+                                <option value="review">Chờ duyệt</option>
+                                <option value="invalid">Từ chối</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="secondary" @click="isCreateOpen = false" class="dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700">Hủy</Button>
+                    <Button type="submit" @click="submitCreate" :disabled="createForm.processing">Tạo mới</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Edit Dialog -->
+        <Dialog :open="isEditOpen" @update:open="isEditOpen = false">
+            <DialogContent class="sm:max-w-[500px] dark:bg-zinc-900 dark:border-zinc-800">
+                <DialogHeader>
+                    <DialogTitle class="dark:text-zinc-100">Cập nhật giao dịch</DialogTitle>
+                    <DialogDescription class="dark:text-zinc-400">
+                        {{ isEditingHand ? 'Chỉnh sửa đầy đủ thông tin (tạo tay).' : 'Chỉnh sửa thông tin mục đích chi và trạng thái.' }}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <!-- Hand edit form -->
+                <div v-if="isEditingHand" class="grid gap-4 py-4">
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Cửa hàng *</Label>
+                        <div class="col-span-3">
+                            <select v-model="editFormHand.store_uid" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="">-- Chọn cửa hàng --</option>
+                                <option v-for="store in stores" :key="store.id" :value="store.ipos_id">
+                                    {{ store.short_name || store.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Loại *</Label>
+                        <div class="col-span-3">
+                            <select v-model="editFormHand.type" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="OUT">Chi (OUT)</option>
+                                <option value="IN">Thu (IN)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Số tiền *</Label>
+                        <div class="col-span-3">
+                            <Input v-model="editFormHand.amount" type="number" min="0" class="dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" />
+                            <p v-if="editFormHand.errors.amount" class="text-red-500 text-xs mt-1">{{ editFormHand.errors.amount }}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Nội dung</Label>
+                        <Input v-model="editFormHand.note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú..." />
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Mục thu/chi</Label>
+                        <div class="col-span-3">
+                            <select v-model="editFormHand.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="">-- Chọn mục thu/chi --</option>
+                                <option v-for="prof in allProfessions" :key="prof.id" :value="prof.id">
+                                    {{ prof.name }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Trạng thái *</Label>
+                        <div class="col-span-3">
+                            <select v-model="editFormHand.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="valid">Đồng ý</option>
+                                <option value="review">Chờ duyệt</option>
+                                <option value="invalid">Từ chối</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 items-center gap-4">
+                        <Label class="text-right dark:text-zinc-300">Note thêm</Label>
+                        <Input v-model="editFormHand.ql_note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú của quản lý..." />
+                    </div>
+                </div>
+
+                <!-- Crawl edit form -->
+                <div v-else class="grid gap-4 py-4">
                     <div class="grid grid-cols-4 items-start gap-4">
                         <div class="col-span-4 text-sm text-gray-700 dark:text-zinc-300 space-y-2">
                              <div class="bg-gray-50 dark:bg-zinc-800 p-3 rounded-md border dark:border-zinc-700">
@@ -449,7 +701,7 @@ const systemStatusLabels: Record<string, string> = {
                                         'text-green-600': editingTransaction?.system_flag === 'valid',
                                         'text-yellow-600': editingTransaction?.system_flag === 'review',
                                         'text-red-600': editingTransaction?.system_flag === 'invalid',
-                                    }">{{ systemStatusLabels[editingTransaction.system_flag] || editingTransaction.system_flag || 'N/A' }}</span>
+                                    }">{{ systemStatusLabels[editingTransaction?.system_flag] || editingTransaction?.system_flag || 'N/A' }}</span>
                                     <span> - {{ editingTransaction?.system_note }}</span>
                                 </p>
                                 <p class="mt-2 text-xs text-gray-500 dark:text-zinc-400">
@@ -460,10 +712,10 @@ const systemStatusLabels: Record<string, string> = {
                     </div>
 
                     <div class="grid grid-cols-4 items-center gap-4">
-                        <Label class="text-right dark:text-zinc-300">Mục chi</Label>
+                        <Label class="text-right dark:text-zinc-300">Mục thu/chi</Label>
                         <div class="col-span-3">
-                             <select v-model="editForm.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
-                                <option value="">-- Chọn tên mục chi --</option>
+                             <select v-model="editFormCrawl.profession_id" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                                <option value="">-- Chọn mục thu/chi --</option>
                                 <option v-for="prof in professions" :key="prof.id" :value="prof.id">
                                     {{ prof.label }}
                                 </option>
@@ -473,7 +725,7 @@ const systemStatusLabels: Record<string, string> = {
                     <div class="grid grid-cols-4 items-center gap-4">
                         <Label class="text-right dark:text-zinc-300">Trạng thái</Label>
                         <div class="col-span-3">
-                            <select v-model="editForm.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
+                            <select v-model="editFormCrawl.flag" class="w-full border-gray-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 rounded-md shadow-sm border p-2 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10">
                                 <option value="valid">Đồng ý</option>
                                 <option value="review">Chờ duyệt</option>
                                 <option value="invalid">Từ chối</option>
@@ -482,12 +734,13 @@ const systemStatusLabels: Record<string, string> = {
                     </div>
                     <div class="grid grid-cols-4 items-center gap-4">
                          <Label class="text-right dark:text-zinc-300">Note thêm (nếu cần)</Label>
-                         <Input v-model="editForm.ql_note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú của quản lý..." />
+                         <Input v-model="editFormCrawl.ql_note" class="col-span-3 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700" placeholder="Ghi chú của quản lý..." />
                     </div>
                 </div>
+
                 <DialogFooter>
                     <Button type="button" variant="secondary" @click="isEditOpen = false" class="dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700">Hủy</Button>
-                    <Button type="submit" @click="submitEdit" :disabled="editForm.processing">Lưu thay đổi</Button>
+                    <Button type="submit" @click="submitEdit" :disabled="isEditingHand ? editFormHand.processing : editFormCrawl.processing">Lưu thay đổi</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -77,7 +77,7 @@ class CrawlTransaction extends Command
 
             $shortName = implode(' ', array_slice(explode(' ', $storeName), 0, 2));
 
-            Store::updateOrCreate(
+            $storeModel = Store::updateOrCreate(
                 ['ipos_id' => $storeUid],
                 [
                     'name' => $storeName,
@@ -113,10 +113,18 @@ class CrawlTransaction extends Command
                 // Sync logic
                 $apiCashIds = array_column($allTransactions, 'cash_id');
 
-                Transaction::where('store_uid', $storeUid)
+                // Reverse cash for transactions that will be deleted
+                $toDelete = Transaction::where('store_uid', $storeUid)
                     ->whereBetween('time', [$startDate, $endDate])
                     ->whereNotIn('cash_id', $apiCashIds)
-                    ->delete();
+                    ->get();
+
+                foreach ($toDelete as $delTran) {
+                    if ($delTran->cash_processed && $delTran->cash_amount) {
+                        $storeModel->decrement('cash', $delTran->cash_amount);
+                    }
+                    $delTran->delete();
+                }
 
                 // Create or update transactions
                 foreach ($allTransactions as $transaction) {
@@ -232,9 +240,6 @@ class CrawlTransaction extends Command
 
                     $type = $transaction['type'] ?? null;
                     $deletedAt = $transaction['deleted_at'] ?? null;
-                    if ($type === 'IN' && ! $deletedAt) {
-                        $deletedAt = now();
-                    }
 
                     $transactionData = [
                         'amount' => $transaction['amount'] ?? null,
@@ -259,6 +264,7 @@ class CrawlTransaction extends Command
                         'system_flag' => $flag,
                         'system_note' => $systemNote,
                         'note' => $transaction['note'] ?? null,
+                        'source' => 'crawl',
 
                         // Added order details
                         'order_payment_method_id' => $foundOrder ? $foundOrder->payment_method_id : null,
@@ -271,12 +277,14 @@ class CrawlTransaction extends Command
 
                     if ($existingTransaction) {
                         $existingTransaction->update($transactionData);
+                        $this->processCashForTransaction($existingTransaction->fresh(), $storeModel);
                     } else {
                         $transactionData['cash_id'] = $transaction['cash_id'];
                         $transactionData['profession_id'] = $profession ? $profession->id : null;
                         $transactionData['flag'] = $flag;
 
-                        Transaction::create($transactionData);
+                        $newTransaction = Transaction::create($transactionData);
+                        $this->processCashForTransaction($newTransaction, $storeModel);
                     }
                 }
             } catch (\Exception $e) {
@@ -437,5 +445,36 @@ class CrawlTransaction extends Command
         }
 
         return round($km, 2);
+    }
+
+    /**
+     * Xử lý cộng/trừ cash cho store dựa trên transaction.
+     * - Mới (chưa processed) → cộng/trừ cash, đánh dấu processed
+     * - Đã processed nhưng amount thay đổi → tính delta, bù trừ
+     * - Bị xóa (deleted_at != null) → hoàn trả cash
+     */
+    private function processCashForTransaction(Transaction $transaction, Store $store): void
+    {
+        $isDeleted = $transaction->deleted_at !== null;
+        $amount = (int) $transaction->amount;
+        // OUT = trừ tiền, IN = cộng tiền
+        $signedAmount = $transaction->type === 'OUT' ? -$amount : $amount;
+
+        if ($isDeleted && $transaction->cash_processed) {
+            // Đã bị xóa → hoàn trả số tiền cũ
+            $store->decrement('cash', $transaction->cash_amount);
+            $transaction->update(['cash_processed' => false, 'cash_amount' => null]);
+        } elseif (! $isDeleted && ! $transaction->cash_processed) {
+            // Mới → cộng/trừ cash
+            $store->increment('cash', $signedAmount);
+            $transaction->update(['cash_processed' => true, 'cash_amount' => $signedAmount]);
+        } elseif (! $isDeleted && $transaction->cash_processed) {
+            // Đã xử lý nhưng amount có thể thay đổi → tính delta
+            $delta = $signedAmount - (int) $transaction->cash_amount;
+            if ($delta != 0) {
+                $store->increment('cash', $delta);
+                $transaction->update(['cash_amount' => $signedAmount]);
+            }
+        }
     }
 }
