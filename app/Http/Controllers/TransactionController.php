@@ -264,20 +264,20 @@ class TransactionController extends Controller
             $professionId = $prof->id;
         }
 
-        $transaction = Transaction::create([
-            'store_uid' => $validated['store_uid'],
-            'cash_id' => $validated['cash_id'],
-            'amount' => $validated['amount'],
-            'type' => $validated['type'],
-            'note' => $validated['note'] ?? null,
-            'profession_id' => $professionId,
-            'flag' => $validated['flag'] ?? 'valid',
-            'system_flag' => $validated['flag'] ?? 'valid',
-            'time' => $time,
-            'source' => $validated['flag'] ?? 'api',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $transaction = Transaction::updateOrCreate(
+            ['cash_id' => $validated['cash_id']],
+            [
+                'store_uid' => $validated['store_uid'],
+                'amount' => $validated['amount'],
+                'type' => $validated['type'],
+                'note' => $validated['note'] ?? null,
+                'profession_id' => $professionId,
+                'flag' => $validated['flag'] ?? 'valid',
+                'system_flag' => $validated['flag'] ?? 'valid',
+                'time' => $time,
+                'source' => $validated['source'] ?? 'api',
+            ]
+        );
 
         $store = Store::where('ipos_id', $validated['store_uid'])->first();
         if ($store) {
