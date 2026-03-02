@@ -236,7 +236,7 @@ class TransactionController extends Controller
 
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'store_uid' => 'required|string',
-            'cash_id' => 'required|string|unique:transactions,cash_id',
+            'cash_id' => 'required|string',
             'amount' => 'required|numeric|min:0',
             'type' => 'required|in:IN,OUT',
             'note' => 'nullable|string',
