@@ -243,6 +243,7 @@ class TransactionController extends Controller
             'profession_id' => 'nullable|exists:professions,id',
             'flag' => 'nullable|in:valid,review,invalid',
             'time' => 'nullable|numeric',
+            'source' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -271,8 +272,9 @@ class TransactionController extends Controller
             'note' => $validated['note'] ?? null,
             'profession_id' => $professionId,
             'flag' => $validated['flag'] ?? 'valid',
+            'system_flag' => $validated['flag'] ?? 'valid',
             'time' => $time,
-            'source' => 'hand',
+            'source' => $validated['flag'] ?? 'api',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
