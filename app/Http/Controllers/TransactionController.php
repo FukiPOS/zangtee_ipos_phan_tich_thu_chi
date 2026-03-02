@@ -226,4 +226,56 @@ class TransactionController extends Controller
 
         return redirect()->back()->with('success', count($validated['ids']).' transactions updated successfully');
     }
+
+    public function apiStore(Request $request)
+    {
+        if ($request->header('internal-token') !== 'GHVTHV1') {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'store_uid' => 'required|string',
+            'cash_id' => 'required|string|unique:transactions,cash_id',
+            'amount' => 'required|numeric|min:0',
+            'type' => 'required|in:IN,OUT',
+            'note' => 'nullable|string',
+            'profession_id' => 'nullable|exists:professions,id',
+            'flag' => 'nullable|in:valid,review,invalid',
+            'time' => 'nullable|numeric',
+        ]);
+
+        $time = $validated['time'] ?? (int)(now()->timestamp * 1000);
+
+        $professionId = $validated['profession_id'] ?? null;
+        if ($validated['type'] === 'IN' && !$professionId) {
+            $prof = Profession::firstOrCreate(
+                ['name' => 'Thu tiền mặt để chi tiêu'],
+                ['type' => 'IN']
+            );
+            $professionId = $prof->id;
+        }
+
+        $transaction = Transaction::create([
+            'store_uid' => $validated['store_uid'],
+            'cash_id' => $validated['cash_id'],
+            'amount' => $validated['amount'],
+            'type' => $validated['type'],
+            'note' => $validated['note'] ?? null,
+            'profession_id' => $professionId,
+            'flag' => $validated['flag'] ?? 'valid',
+            'time' => $time,
+            'source' => 'hand',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $store = Store::where('ipos_id', $validated['store_uid'])->first();
+        if ($store) {
+            $signedAmount = $validated['type'] === 'OUT' ? -(int) $validated['amount'] : (int) $validated['amount'];
+            $store->increment('cash', $signedAmount);
+            $transaction->update(['cash_processed' => true, 'cash_amount' => $signedAmount]);
+        }
+
+        return response()->json(['success' => true, 'transaction' => $transaction], 201);
+    }
 }
