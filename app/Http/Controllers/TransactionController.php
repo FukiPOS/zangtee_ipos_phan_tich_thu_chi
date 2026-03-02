@@ -229,11 +229,12 @@ class TransactionController extends Controller
 
     public function apiStore(Request $request)
     {
+       
         if ($request->header('internal-token') !== 'GHVTHV1') {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $validated = $request->validate([
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'store_uid' => 'required|string',
             'cash_id' => 'required|string|unique:transactions,cash_id',
             'amount' => 'required|numeric|min:0',
@@ -244,6 +245,13 @@ class TransactionController extends Controller
             'time' => 'nullable|numeric',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $validated = $validator->validated();
+
+        
         $time = $validated['time'] ?? (int)(now()->timestamp * 1000);
 
         $professionId = $validated['profession_id'] ?? null;
@@ -276,6 +284,6 @@ class TransactionController extends Controller
             $transaction->update(['cash_processed' => true, 'cash_amount' => $signedAmount]);
         }
 
-        return response()->json(['success' => true, 'transaction' => $transaction], 201);
+        return response()->json(['success' => true, 'transaction' => $transaction], 200);
     }
 }
