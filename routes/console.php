@@ -9,3 +9,6 @@ Schedule::command('app:crawl-order')->dailyAt('2:00');
 
 // Run app:crawl-transaction daily
 Schedule::command('app:crawl-transaction')->dailyAt('3:00');
+
+// Run app:crawl-gmail-invoices hourly
+Schedule::command('app:crawl-gmail-invoices --download-attachments')->hourly();

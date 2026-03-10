@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\GmailAuthController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -17,33 +18,38 @@ Route::get('/haha', function () {
 
 // Authentication routes (Fabi)
 Route::middleware('fabi.guest')->group(function () {
-    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/login', [AuthController::class , 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class , 'login']);
 });
 
 Route::middleware('fabi.auth')->group(function () {
     // Logout route
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::post('/logout', [AuthController::class , 'logout'])->name('logout');
 
     // API route to get current user info
-    Route::get('/api/me', [AuthController::class, 'me'])->name('api.me');
+    Route::get('/api/me', [AuthController::class , 'me'])->name('api.me');
 
     // Dashboard
     Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+            return Inertia::render('Dashboard');
+        }
+        )->name('dashboard');
 
-    // Settings routes (protected)
-    // Settings routes (protected)
-    require __DIR__.'/settings.php';
+        // Settings routes (protected)
+        // Settings routes (protected)
+        require __DIR__ . '/settings.php';
 
-    // Transaction routes
-    Route::get('/transactions', [\App\Http\Controllers\TransactionController::class, 'index'])->name('transactions.index');
-    Route::post('/transactions', [\App\Http\Controllers\TransactionController::class, 'store'])->name('transactions.store');
-    Route::put('/transactions/{id}', [\App\Http\Controllers\TransactionController::class, 'update'])->name('transactions.update');
-    Route::delete('/transactions/{id}', [\App\Http\Controllers\TransactionController::class, 'destroy'])->name('transactions.destroy');
-    Route::post('/transactions/bulk-update', [\App\Http\Controllers\TransactionController::class, 'bulkUpdate'])->name('transactions.bulk-update');
+        // Transaction routes
+        Route::get('/transactions', [\App\Http\Controllers\TransactionController::class , 'index'])->name('transactions.index');
+        Route::post('/transactions', [\App\Http\Controllers\TransactionController::class , 'store'])->name('transactions.store');
+        Route::put('/transactions/{id}', [\App\Http\Controllers\TransactionController::class , 'update'])->name('transactions.update');
+        Route::delete('/transactions/{id}', [\App\Http\Controllers\TransactionController::class , 'destroy'])->name('transactions.destroy');
+        Route::post('/transactions/bulk-update', [\App\Http\Controllers\TransactionController::class , 'bulkUpdate'])->name('transactions.bulk-update');
 
-    // Revenue routes
-    Route::get('/revenue', [\App\Http\Controllers\RevenueController::class, 'index'])->name('revenue.index');
-});
+        // Revenue routes
+        Route::get('/revenue', [\App\Http\Controllers\RevenueController::class , 'index'])->name('revenue.index');
+
+        // Gmail OAuth routes
+        Route::get('/gmail/auth', [GmailAuthController::class , 'redirect'])->name('gmail.auth');
+        Route::get('/gmail/callback', [GmailAuthController::class , 'callback'])->name('gmail.callback');
+    });
